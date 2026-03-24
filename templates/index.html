@@ -9,21 +9,114 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-
     <header>
-        <h1>Welcome to My Flask App</h1>
+        <h1>EmotionArt</h1>
     </header>
 
     <main>
         <p>This is a basic homepage.</p>
-
-        <!-- Example button -->
-        <button>Click me</button>
+        <button id="mic-toggle" type="button">Start recording</button>
+        <p id="recording-status">Microphone idle.</p>
+        <p><strong>Transcript:</strong> <span id="transcript-output">None</span></p>
+        <div>
+            <strong>Emotion classification:</strong>
+            <pre id="classification-output">No classification yet.</pre>
+        </div>
     </main>
 
     <footer>
         <p>&copy; 2026 My Project</p>
     </footer>
+
+    <script>
+        const button = document.getElementById('mic-toggle');
+        const recordingStatus = document.getElementById('recording-status');
+        const transcriptOutput = document.getElementById('transcript-output');
+        const classificationOutput = document.getElementById('classification-output');
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            button.disabled = true;
+            recordingStatus.textContent = 'Speech recognition is not supported in this browser.';
+        } else {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-GB';
+
+            let isRecording = false;
+
+            button.addEventListener('click', () => {
+                if (isRecording) {
+                    recognition.stop();
+                    return;
+                }
+
+                classificationOutput.textContent = 'Waiting for speech input...';
+                recordingStatus.textContent = 'Listening...';
+                recognition.start();
+            });
+
+            recognition.addEventListener('start', () => {
+                isRecording = true;
+                button.textContent = 'Stop recording';
+            });
+
+            recognition.addEventListener('end', () => {
+                isRecording = false;
+                button.textContent = 'Start recording';
+                if (recordingStatus.textContent === 'Listening...') {
+                    recordingStatus.textContent = 'Microphone idle.';
+                }
+            });
+
+            recognition.addEventListener('result', async (event) => {
+                const transcript = Array.from(event.results)
+                    .map((result) => result[0].transcript)
+                    .join(' ')
+                    .trim();
+
+                transcriptOutput.textContent = transcript || 'None';
+                recordingStatus.textContent = 'Classifying text...';
+
+                if (!transcript) {
+                    classificationOutput.textContent = 'No speech detected.';
+                    recordingStatus.textContent = 'Microphone idle.';
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/analyse', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ text: transcript })
+                    });
+
+                    const payload = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(payload.error || 'Classification failed.');
+                    }
+
+                    classificationOutput.textContent = payload.emotions
+                        .map((emotion) => `${emotion.label}: ${emotion.score.toFixed(4)}`)
+                        .join('\n');
+                    recordingStatus.textContent = 'Classification complete.';
+                } catch (error) {
+                    classificationOutput.textContent = error.message;
+                    recordingStatus.textContent = 'Microphone idle.';
+                }
+            });
+
+            recognition.addEventListener('error', (event) => {
+                classificationOutput.textContent = `Speech recognition error: ${event.error}`;
+                recordingStatus.textContent = 'Microphone idle.';
+            });
+        }
+    </script>
 
 </body>
 </html>

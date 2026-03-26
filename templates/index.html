@@ -3,120 +3,213 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Flask App</title>
-
-    <!-- Link to static CSS -->
+    <title>EmotionArt | 10-Second Morphic Cycle</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body { margin: 0; background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #glCanvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        .ui-container { position: relative; z-index: 10; pointer-events: none; padding: 40px; height: 100vh; display: flex; flex-direction: column; justify-content: space-between; }
+        .controls { pointer-events: auto; background: rgba(0, 0, 0, 0.85); padding: 20px; border-radius: 12px; width: 280px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(25px); }
+        button { background: #fff; color: #000; border: none; padding: 12px; border-radius: 6px; font-weight: 800; cursor: pointer; width: 100%; margin-bottom: 10px; text-transform: uppercase; }
+        pre { font-family: 'Courier New', monospace; font-size: 10px; color: #00ffcc; margin: 0; white-space: pre-wrap; opacity: 0.9; }
+        h1 { margin: 0 0 5px 0; font-size: 16px; letter-spacing: 3px; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px; }
+    </style>
 </head>
 <body>
-    <header>
-        <h1>EmotionArt</h1>
-    </header>
 
-    <main>
-        <p>This is a basic homepage.</p>
-        <button id="mic-toggle" type="button">Start recording</button>
-        <p id="recording-status">Microphone idle.</p>
-        <p><strong>Transcript:</strong> <span id="transcript-output">None</span></p>
-        <div>
-            <strong>Emotion classification:</strong>
-            <pre id="classification-output">No classification yet.</pre>
+    <canvas id="glCanvas"></canvas>
+
+    <div class="ui-container">
+        <header><h1>Morphic Resonance</h1></header>
+        <div class="controls">
+            <button id="mic-toggle" type="button">Scan Emotion</button>
+            <p id="recording-status" style="margin: 5px 0; font-size: 9px; opacity: 0.5;">CYCLE ACTIVE: 10S MORPH</p>
+            <div style="margin-top: 10px;">
+                <pre id="classification-output">Awaiting Neural Data...</pre>
+            </div>
         </div>
-    </main>
+        <footer><p style="font-size: 8px; opacity: 0.2; letter-spacing: 2px;">10-SECOND EVOLUTION ENGINE // V6.0</p></footer>
+    </div>
 
-    <footer>
-        <p>&copy; 2026 My Project</p>
-    </footer>
+    <script id="fs" type="x-shader/x-fragment">
+        precision highp float;
+        uniform float u_time;
+        uniform float u_macro; // The 10-second cycle (0.0 to 1.0)
+        uniform vec2 u_res;
+        uniform vec2 u_center;
+        
+        uniform float u_anger, u_disgust, u_fear, u_joy, u_neutral, u_sadness, u_surprise;
 
-    <script>
-        const button = document.getElementById('mic-toggle');
-        const recordingStatus = document.getElementById('recording-status');
-        const transcriptOutput = document.getElementById('transcript-output');
-        const classificationOutput = document.getElementById('classification-output');
+        vec2 rot(vec2 p, float a) {
+            float s = sin(a), c = cos(a);
+            return mat2(c, -s, s, c) * p;
+        }
 
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        vec3 renderLayer(vec2 uv, float zoom, float weight) {
+            vec2 p = (uv - u_center) * zoom;
+            
+            // Apply a "Domain Warp" that evolves over the 10-second macro cycle
+            float macroWarp = sin(u_macro * 6.2831);
+            p = rot(p, macroWarp * 0.5); 
+            p += cos(p.yx * (2.0 + u_macro * 3.0)) * (0.15 * u_disgust);
 
-        if (!SpeechRecognition) {
-            button.disabled = true;
-            recordingStatus.textContent = 'Speech recognition is not supported in this browser.';
-        } else {
-            const recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.lang = 'en-GB';
+            float d = 0.0;
+            vec2 iter = p;
+            
+            // Symmetry evolves slightly over the 10s cycle even if emotion is static
+            float symmetry = 1.0 + (u_joy * 11.0) + (u_anger * 2.0) + (u_neutral * 5.0) + (sin(u_macro * 6.28) * 0.5);
+            float ang = atan(iter.y, iter.x);
+            float rad = length(iter);
+            ang = mod(ang, (6.28 / symmetry)) - (3.14 / symmetry);
+            iter = vec2(cos(ang), sin(ang)) * rad;
 
-            let isRecording = false;
+            float maxIter = 4.0 + (u_fear * 6.0) - (u_sadness * 2.0);
+            
+            for(float i=0.0; i<10.0; i++) {
+                if(i > maxIter) break;
+                
+                // Shape morphing influenced by the 10s macro phase
+                float phaseShift = sin(u_macro * 6.28 + i) * 0.1;
+                float shapeFactor = 0.4 + (u_anger * 0.5) - (u_sadness * 0.3) + phaseShift;
+                
+                iter = abs(iter) - shapeFactor;
+                iter = rot(iter, u_time * 0.05 + i + (u_macro * 2.0));
+                iter *= 1.1 + (u_joy * 0.1);
+                
+                // Prominent feathered lines
+                float line = abs(sin(length(iter) * (3.0 + u_fear * 5.0) + u_time));
+                d += pow(0.012 / line, 1.25); 
+            }
 
-            button.addEventListener('click', () => {
-                if (isRecording) {
-                    recognition.stop();
-                    return;
-                }
+            // Colors
+            vec3 c_anger = vec3(1.0, 0.0, 0.1) * u_anger;
+            vec3 c_disgust = vec3(0.2, 0.8, 0.2) * u_disgust;
+            vec3 c_fear = vec3(0.5, 0.0, 1.0) * u_fear;
+            vec3 c_joy = vec3(1.0, 0.8, 0.0) * u_joy;
+            vec3 c_sadness = vec3(0.0, 0.4, 1.0) * u_sadness;
+            vec3 c_surprise = vec3(1.0, 1.0, 1.0) * u_surprise;
+            vec3 c_neutral = vec3(0.3, 0.6, 0.7) * u_neutral;
+            
+            vec3 finalCol = c_anger + c_disgust + c_fear + c_joy + c_sadness + c_surprise + c_neutral;
+            
+            // Shift color hue slightly over the 10s cycle
+            finalCol = rot(finalCol.rb, u_macro * 0.5).x > 0.0 ? finalCol : finalCol; // Subtle shift
 
-                classificationOutput.textContent = 'Waiting for speech input...';
-                recordingStatus.textContent = 'Listening...';
-                recognition.start();
-            });
+            return finalCol * d * weight * 0.5;
+        }
 
-            recognition.addEventListener('start', () => {
-                isRecording = true;
-                button.textContent = 'Stop recording';
-            });
+        void main() {
+            vec2 uv = (gl_FragCoord.xy - 0.5 * u_res.xy) / min(u_res.y, u_res.x);
+            
+            // The 10s macro also tilts the entire "camera"
+            uv = rot(uv, sin(u_macro * 6.28) * 0.1);
 
-            recognition.addEventListener('end', () => {
-                isRecording = false;
-                button.textContent = 'Start recording';
-                if (recordingStatus.textContent === 'Listening...') {
-                    recordingStatus.textContent = 'Microphone idle.';
-                }
-            });
+            float energy = (u_joy + u_anger + u_fear + u_surprise) * 0.6 + 0.12;
+            float t = u_time * energy;
+            
+            float z1 = mod(t, 3.0), z2 = mod(t + 1.0, 3.0), z3 = mod(t + 2.0, 3.0);
+            float w1 = smoothstep(0.0, 0.8, z1) * smoothstep(3.0, 2.2, z1);
+            float w2 = smoothstep(0.0, 0.8, z2) * smoothstep(3.0, 2.2, z2);
+            float w3 = smoothstep(0.0, 0.8, z3) * smoothstep(3.0, 2.2, z3);
 
-            recognition.addEventListener('result', async (event) => {
-                const transcript = Array.from(event.results)
-                    .map((result) => result[0].transcript)
-                    .join(' ')
-                    .trim();
+            vec3 scene = renderLayer(uv, exp(z1), w1) + 
+                         renderLayer(uv, exp(z2), w2) + 
+                         renderLayer(uv, exp(z3), w3);
 
-                transcriptOutput.textContent = transcript || 'None';
-                recordingStatus.textContent = 'Classifying text...';
-
-                if (!transcript) {
-                    classificationOutput.textContent = 'No speech detected.';
-                    recordingStatus.textContent = 'Microphone idle.';
-                    return;
-                }
-
-                try {
-                    const response = await fetch('/analyse', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ text: transcript })
-                    });
-
-                    const payload = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(payload.error || 'Classification failed.');
-                    }
-
-                    classificationOutput.textContent = payload.emotions
-                        .map((emotion) => `${emotion.label}: ${emotion.score.toFixed(4)}`)
-                        .join('\n');
-                    recordingStatus.textContent = 'Classification complete.';
-                } catch (error) {
-                    classificationOutput.textContent = error.message;
-                    recordingStatus.textContent = 'Microphone idle.';
-                }
-            });
-
-            recognition.addEventListener('error', (event) => {
-                classificationOutput.textContent = `Speech recognition error: ${event.error}`;
-                recordingStatus.textContent = 'Microphone idle.';
-            });
+            gl_FragColor = vec4(pow(scene, vec3(0.95)), 1.0);
         }
     </script>
 
+    <script id="vs" type="x-shader/x-vertex">
+        attribute vec2 a_pos;
+        void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+    </script>
+
+    <script>
+        const canvas = document.getElementById('glCanvas');
+        const gl = canvas.getContext('webgl');
+
+        let cur = { anger:0, disgust:0, fear:0, joy:0, neutral:0.5, sadness:0, surprise:0 };
+        let tar = { anger:0, disgust:0, fear:0, joy:0, neutral:0.5, sadness:0, surprise:0 };
+
+        function createShader(gl, type, source) {
+            const s = gl.createShader(type);
+            gl.shaderSource(s, source);
+            gl.compileShader(s);
+            return s;
+        }
+
+        const program = gl.createProgram();
+        gl.attachShader(program, createShader(gl, gl.VERTEX_SHADER, document.getElementById('vs').text));
+        gl.attachShader(program, createShader(gl, gl.FRAGMENT_SHADER, document.getElementById('fs').text));
+        gl.linkProgram(program);
+        gl.useProgram(program);
+
+        const buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+
+        const posLoc = gl.getAttribLocation(program, "a_pos");
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+        const loc = {
+            t: gl.getUniformLocation(program, "u_time"),
+            macro: gl.getUniformLocation(program, "u_macro"),
+            res: gl.getUniformLocation(program, "u_res"),
+            center: gl.getUniformLocation(program, "u_center"),
+            anger: gl.getUniformLocation(program, "u_anger"), disgust: gl.getUniformLocation(program, "u_disgust"),
+            fear: gl.getUniformLocation(program, "u_fear"), joy: gl.getUniformLocation(program, "u_joy"),
+            neutral: gl.getUniformLocation(program, "u_neutral"), sadness: gl.getUniformLocation(program, "u_sadness"),
+            surprise: gl.getUniformLocation(program, "u_surprise")
+        };
+
+        function render(time) {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+
+            // Calculate the 10-second Macro Cycle (value between 0.0 and 1.0)
+            const macroCycle = (time % 10000) / 10000;
+
+            Object.keys(tar).forEach(k => cur[k] = cur[k] * 0.95 + tar[k] * 0.05);
+
+            gl.uniform1f(loc.t, time * 0.001);
+            gl.uniform1f(loc.macro, macroCycle);
+            gl.uniform2f(loc.res, canvas.width, canvas.height);
+            
+            // Dynamic pathing for the center
+            gl.uniform2f(loc.center, Math.sin(time*0.0006)*0.3, Math.cos(time*0.0004)*0.2);
+            
+            Object.keys(cur).forEach(k => gl.uniform1f(loc[k], cur[k]));
+
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+            requestAnimationFrame(render);
+        }
+        requestAnimationFrame(render);
+
+        const button = document.getElementById('mic-toggle');
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.addEventListener('result', async (event) => {
+                const transcript = event.results[0][0].transcript;
+                try {
+                    const response = await fetch('/analyse', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: transcript })
+                    });
+                    const payload = await response.json();
+                    Object.keys(tar).forEach(k => tar[k] = 0);
+                    payload.emotions.forEach(e => { if(tar.hasOwnProperty(e.label)) tar[e.label] = e.score; });
+                    document.getElementById('classification-output').textContent = 
+                        payload.emotions.slice(0,5).map(e => `${e.label.toUpperCase()}: ${Math.round(e.score*100)}%`).join('\n');
+                } catch (e) { console.error(e); }
+            });
+            button.addEventListener('click', () => recognition.start());
+        }
+    </script>
 </body>
 </html>

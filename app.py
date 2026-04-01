@@ -16,6 +16,11 @@ def bubbles():
     return render_template('bubbles.html')
 
 
+@app.route('/zen-pots')
+def zen_pots():
+    return render_template('zen_pots.html')
+
+
 @app.route('/analyse', methods=['POST'])
 def analyse():
     data = request.get_json(silent=True) or {}

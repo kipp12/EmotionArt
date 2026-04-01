@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmotionArt Flower Pots</title>
+    <style>
+        * { box-sizing: border-box; }
+        :root {
+            --bg-ui: #121212;
+            --panel: rgba(237, 228, 202, 0.94);
+            --panel-strong: #ede4ca;
+            --panel-border: #101010;
+            --text: #111111;
+            --muted: rgba(17, 17, 17, 0.68);
+            --accent: #d84e2f;
+            --accent-2: #f0d56f;
+            --ink: #0d0d0d;
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: "Courier New", monospace;
+            color: var(--text);
+            background: #d3c28c;
+        }
+        body[data-ui-theme="dark"] {
+            --panel: rgba(20, 20, 22, 0.96);
+            --panel-strong: #16161a;
+            --panel-border: #050505;
+            --text: #f1e8d6;
+            --muted: rgba(241, 232, 214, 0.68);
+            --accent: #ff5a36;
+            --accent-2: #ff5a36;
+            --ink: #f6efe0;
+        }
+        #p5-holder {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+        }
+        .nav {
+            position: fixed;
+            top: 28px;
+            right: 28px;
+            z-index: 20;
+            display: flex;
+            gap: 8px;
+        }
+        .nav a {
+            color: #f3ead4;
+            text-decoration: none;
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 8px 12px;
+            border: 2px solid rgba(243, 234, 212, 0.4);
+            background: rgba(0, 0, 0, 0.38);
+            transition: 0.15s ease;
+        }
+        .nav a:hover,
+        .nav a.current {
+            color: #111111;
+            border-color: var(--ink);
+            background: var(--panel-strong);
+        }
+        body[data-ui-theme="dark"] .nav a {
+            color: #f6efe0;
+            border-color: rgba(246, 239, 224, 0.35);
+            background: rgba(0, 0, 0, 0.64);
+        }
+        body[data-ui-theme="dark"] .nav a:hover,
+        body[data-ui-theme="dark"] .nav a.current {
+            color: #f6efe0;
+            background: #17171b;
+            border-color: #ff5a36;
+        }
+        .ui {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 15;
+            display: flex;
+            justify-content: center;
+            padding: 0;
+            pointer-events: none;
+        }
+        .dock {
+            pointer-events: auto;
+            background: var(--panel);
+            border: 3px solid var(--panel-border);
+            width: min(1120px, calc(100vw - 32px));
+            margin: 0 16px 16px;
+            box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.34);
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            gap: 0;
+        }
+        .brand {
+            border-right: 3px solid var(--panel-border);
+            padding: 18px 18px 16px;
+            background: linear-gradient(180deg, rgba(216, 78, 47, 0.08), rgba(216, 78, 47, 0));
+        }
+        .eyebrow {
+            font-size: 11px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 30px;
+            line-height: 1;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .dock-main {
+            display: grid;
+            grid-template-rows: auto auto;
+            min-width: 0;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: 180px 170px 1fr 130px;
+            gap: 0;
+            border-bottom: 3px solid var(--panel-border);
+        }
+        button {
+            width: 100%;
+            border: 0;
+            border-right: 3px solid var(--panel-border);
+            padding: 16px 14px;
+            cursor: pointer;
+            background: var(--accent-2);
+            color: var(--ink);
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: inherit;
+            font-size: 12px;
+        }
+        button.active {
+            background: var(--accent);
+            color: #fff3df;
+        }
+        button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .mode-row {
+            display: grid;
+            min-width: 0;
+        }
+        .palette-block {
+            position: relative;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            padding: 10px 12px 8px;
+            border-right: 3px solid var(--panel-border);
+            background: var(--accent);
+        }
+        .palette-label {
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(255, 243, 223, 0.72);
+            margin: 0 0 6px 0;
+            pointer-events: none;
+        }
+        .palette-value {
+            color: #fff3df;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            line-height: 1.2;
+            pointer-events: none;
+        }
+        .palette-select {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+            outline: none;
+            appearance: none;
+            cursor: pointer;
+            opacity: 0;
+        }
+        .text-row {
+            display: contents;
+        }
+        .text-row input {
+            min-width: 0;
+            border: 0;
+            border-right: 3px solid var(--panel-border);
+            background: rgba(0, 0, 0, 0.06);
+            color: var(--text);
+            padding: 16px 14px;
+            outline: none;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        .text-row input::placeholder {
+            color: rgba(17, 17, 17, 0.45);
+        }
+        body[data-ui-theme="dark"] .text-row input {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+        }
+        body[data-ui-theme="dark"] .text-row input::placeholder {
+            color: rgba(241, 232, 214, 0.42);
+        }
+        .text-row button {
+            border-right: 0;
+        }
+        .readout {
+            display: grid;
+            grid-template-columns: 160px 1fr 1fr;
+            min-width: 0;
+        }
+        .status-block {
+            border-right: 3px solid var(--panel-border);
+            padding: 14px;
+            background: rgba(0, 0, 0, 0.04);
+        }
+        .readout-block {
+            min-width: 0;
+            padding: 14px;
+            background: rgba(255, 255, 255, 0.18);
+        }
+        body[data-ui-theme="dark"] .status-block {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        body[data-ui-theme="dark"] .readout-block {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .readout-block + .readout-block {
+            border-left: 3px solid var(--panel-border);
+        }
+        .readout-label {
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 0 0 8px 0;
+        }
+        #status-label {
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 0 0 8px 0;
+        }
+        #status {
+            font-size: 18px;
+            line-height: 1;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--ink);
+            margin: 0;
+        }
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            color: var(--ink);
+            font-size: 12px;
+            line-height: 1.45;
+            font-family: "Courier New", monospace;
+        }
+        #transcript {
+            min-height: 4.4em;
+            max-height: 7.6em;
+            overflow: auto;
+        }
+        @media (max-width: 900px) {
+            .ui {
+                padding: 0;
+            }
+            .dock {
+                width: calc(100vw - 20px);
+                margin: 0 10px 10px;
+                grid-template-columns: 1fr;
+            }
+            .brand {
+                border-right: 0;
+                border-bottom: 3px solid var(--panel-border);
+            }
+            .controls,
+            .readout {
+                grid-template-columns: 1fr;
+            }
+            button,
+            .text-row input,
+            .status-block,
+            .palette-block {
+                border-right: 0;
+                border-bottom: 3px solid var(--panel-border);
+            }
+            .readout-block {
+                border-left: 0;
+                border-bottom: 3px solid var(--panel-border);
+            }
+            .text-row button,
+            .readout-block:last-child {
+                border-bottom: 0;
+            }
+            .nav {
+                top: 16px;
+                right: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="p5-holder"></div>
+
+    <nav class="nav">
+        <a href="/">Waves</a>
+        <a href="/bubbles">Bubbles</a>
+        <a href="/zen-pots" class="current">Flower Pots</a>
+    </nav>
+
+    <div class="ui">
+        <div class="dock">
+            <div class="brand">
+                <div class="eyebrow">EmotionArt Theme</div>
+                <h1>Flower Pots</h1>
+                <p>Generate an artsy row of pots, themed by your mood.</p>
+            </div>
+            <div class="dock-main">
+                <div class="controls">
+                    <button id="mic-toggle" class="active" type="button">Pause Listening</button>
+                    <div class="mode-row">
+                        <label class="palette-block" for="palette-select">
+                            <span class="palette-label">Palette</span>
+                            <span id="palette-value" class="palette-value">Soft Pastel (Light)</span>
+                            <select id="palette-select" class="palette-select">
+                                <option value="dark">Sombre Neon (Dark)</option>
+                                <option value="light" selected>Soft Pastel (Light)</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="text-row">
+                        <input id="text-input" type="text" placeholder="Type a feeling, memory, or sentence...">
+                        <button id="text-submit" type="button">Generate</button>
+                    </div>
+                </div>
+                <div class="readout">
+                    <div class="status-block">
+                        <div id="status-label">System</div>
+                        <p id="status">Listening</p>
+                    </div>
+                    <div class="readout-block">
+                        <div class="readout-label">Emotion Scores</div>
+                        <pre id="output">Waiting for input...</pre>
+                    </div>
+                    <div class="readout-block">
+                        <div class="readout-label">Transcript</div>
+                        <pre id="transcript">Waiting for speech or text...</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+    <script src="{{ url_for('static', filename='flower-pots/flower-pots-data.js') }}"></script>
+    <script src="{{ url_for('static', filename='flower-pots/flower-pots-scene.js') }}"></script>
+    <script src="{{ url_for('static', filename='flower-pots/flower-pots-app.js') }}"></script>
+</body>
+</html>

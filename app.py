@@ -16,6 +16,11 @@ def bubbles():
     return render_template('bubbles.html')
 
 
+@app.route('/purple-live')
+def purple_live():
+    return render_template('purple_live.html')
+
+
 @app.route('/analyse', methods=['POST'])
 def analyse():
     data = request.get_json(silent=True) or {}

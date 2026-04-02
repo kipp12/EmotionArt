@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Purple Live Mood</title>
+    <style>
+        :root {
+            --bg-a: #1a0830;
+            --bg-b: #2f0f56;
+            --bg-c: #4f1f7f;
+            --line: rgba(209, 171, 255, 0.36);
+            --text: #f7efff;
+            --muted: #cbb5e7;
+            --panel: rgba(18, 9, 33, 0.72);
+            --accent: #b86bff;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--text);
+            font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+            background:
+                radial-gradient(45rem 32rem at 15% 10%, rgba(175, 101, 255, 0.28), transparent),
+                radial-gradient(38rem 30rem at 90% 88%, rgba(99, 144, 255, 0.18), transparent),
+                linear-gradient(140deg, var(--bg-a), var(--bg-b) 48%, var(--bg-c));
+            overflow-x: hidden;
+        }
+
+        .float-layer {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .float {
+            position: absolute;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            background: rgba(255, 255, 255, 0.05);
+            color: #e3ccff;
+            font-size: 0.78rem;
+            letter-spacing: 0.03em;
+            animation: drift 11s ease-in-out infinite;
+        }
+
+        .f1 { top: 12%; left: 6%; animation-delay: 0s; }
+        .f2 { top: 21%; right: 8%; animation-delay: 1.5s; }
+        .f3 { top: 72%; left: 10%; animation-delay: 0.8s; }
+        .f4 { top: 78%; right: 12%; animation-delay: 2.2s; }
+        .f5 { top: 45%; right: 4%; animation-delay: 1.2s; }
+
+        @keyframes drift {
+            0%, 100% { transform: translateY(0px); opacity: 0.66; }
+            50% { transform: translateY(-12px); opacity: 1; }
+        }
+
+        .shell {
+            width: min(820px, 92vw);
+            margin: 52px auto;
+            padding: 24px;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            backdrop-filter: blur(7px);
+        }
+
+        h1 { margin: 0 0 8px; font-size: clamp(1.4rem, 3vw, 2rem); }
+        .sub { margin: 0 0 18px; color: var(--muted); font-size: 0.92rem; }
+
+        .row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+
+        .mic-btn {
+            width: 48px; height: 48px; border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            background: linear-gradient(150deg, rgba(185, 115, 255, 0.35), rgba(65, 33, 103, 0.55));
+            color: var(--text);
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        .mic-btn.active { box-shadow: 0 0 0 8px rgba(255, 104, 153, 0.17); }
+        .status { color: var(--muted); font-size: 0.9rem; }
+
+        textarea {
+            width: 100%;
+            min-height: 110px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: rgba(12, 4, 23, 0.6);
+            color: var(--text);
+            padding: 12px;
+            font-size: 0.96rem;
+            resize: vertical;
+            outline: none;
+        }
+
+        .scores {
+            margin-top: 12px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px 12px;
+            background: rgba(11, 3, 20, 0.54);
+        }
+
+        .score-row {
+            display: grid;
+            grid-template-columns: 88px 1fr 56px;
+            gap: 10px;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 0.88rem;
+            color: var(--muted);
+        }
+
+        .bar {
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.14);
+            overflow: hidden;
+        }
+
+        .fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #ad5dff, #74c8ff);
+        }
+
+        .style-wrap { margin-top: 18px; }
+        .style-head { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.88rem; }
+        .style-value { color: var(--text); font-weight: 600; }
+
+        .style-segment {
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            margin-top: 8px;
+            border-radius: 12px;
+            padding: 4px;
+            border: 1px solid var(--line);
+            background: rgba(8, 3, 15, 0.48);
+        }
+
+        .style-pill {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: calc((100% - 8px) / 3);
+            height: calc(100% - 8px);
+            border-radius: 9px;
+            border: 1px solid rgba(193, 148, 255, 0.55);
+            background: linear-gradient(145deg, rgba(182, 99, 255, 0.4), rgba(83, 42, 133, 0.52));
+            transition: transform 0.18s ease;
+            pointer-events: none;
+        }
+
+        .style-box {
+            position: relative;
+            z-index: 1;
+            border: 0;
+            background: transparent;
+            color: var(--muted);
+            font-size: 0.9rem;
+            padding: 12px 8px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .style-box.active {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .generate {
+            width: 100%;
+            margin-top: 18px;
+            border: 1px solid rgba(188, 232, 255, 0.38);
+            border-radius: 12px;
+            padding: 12px;
+            color: var(--text);
+            font-weight: 650;
+            background: linear-gradient(130deg, rgba(136, 88, 255, 0.88), rgba(88, 181, 255, 0.8));
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="float-layer">
+        <div class="float f1">echo</div>
+        <div class="float f2">violet</div>
+        <div class="float f3">mood</div>
+        <div class="float f4">signal</div>
+        <div class="float f5">tone</div>
+    </div>
+
+    <main class="shell">
+        <h1>Purple Live Mood</h1>
+        <p class="sub">Minimal view with live mic transcript + tone/intonation emotion percentages.</p>
+
+        <div class="row">
+            <button id="micBtn" class="mic-btn" aria-label="Toggle microphone">🎤</button>
+            <div id="micStatus" class="status">Mic idle.</div>
+        </div>
+
+        <textarea id="promptText" placeholder="Speak or type your prompt..."></textarea>
+
+        <section class="scores" id="scoresPanel"></section>
+
+        <div class="style-wrap">
+            <div class="style-head">
+                <span>Style slider</span>
+                <span class="style-value" id="styleValue">Shapes</span>
+            </div>
+            <div class="style-segment" id="styleSegment">
+                <div class="style-pill" id="stylePill"></div>
+                <button type="button" class="style-box active" data-style-index="0">Shapes</button>
+                <button type="button" class="style-box" data-style-index="1">Waves</button>
+                <button type="button" class="style-box" data-style-index="2">Particles</button>
+            </div>
+        </div>
+
+        <button id="generateBtn" class="generate">Generate</button>
+    </main>
+
+    <script>
+        const EMOTIONS = ["anger", "disgust", "fear", "joy", "neutral", "sadness", "surprise"];
+        const STYLE_OPTIONS = ["Shapes", "Waves", "Particles"];
+        const NEUTRAL = {
+            anger: 0,
+            disgust: 0,
+            fear: 0,
+            joy: 0,
+            neutral: 100,
+            sadness: 0,
+            surprise: 0
+        };
+        const SMOOTH_ALPHA = 0.2;
+        const ANALYSE_DEBOUNCE_MS = 450;
+        const TONE_VOICE_RMS = 0.012;
+        const TONE_HOLD_MS = 700;
+
+        const micBtn = document.getElementById("micBtn");
+        const micStatus = document.getElementById("micStatus");
+        const promptEl = document.getElementById("promptText");
+        const scoresPanel = document.getElementById("scoresPanel");
+        const styleSegment = document.getElementById("styleSegment");
+        const stylePill = document.getElementById("stylePill");
+        const styleBoxes = Array.from(document.querySelectorAll(".style-box"));
+        const styleValue = document.getElementById("styleValue");
+        const generateBtn = document.getElementById("generateBtn");
+
+        let recognition = null;
+        let isListening = false;
+        let selectedStyleIndex = 0;
+        let draggingStyle = false;
+        let smoothedScores = { ...NEUTRAL };
+        let textScores = { ...NEUTRAL };
+        let toneScores = { ...NEUTRAL };
+        let analyseTimer = null;
+        let analyseAbort = null;
+        let audioContext = null;
+        let analyser = null;
+        let mediaStream = null;
+        let rafId = null;
+        let prevPitch = 170;
+        let lastVoiceMs = 0;
+
+        function buildScoreRows() {
+            scoresPanel.innerHTML = EMOTIONS.map((name) => (
+                '<div class="score-row">' +
+                "<span>" + name + "</span>" +
+                '<div class="bar"><div class="fill" id="fill-' + name + '"></div></div>' +
+                '<span id="pct-' + name + '">0%</span>' +
+                "</div>"
+            )).join("");
+        }
+
+        function updateScoreBars(values) {
+            EMOTIONS.forEach((name) => {
+                const pct = values[name] || 0;
+                document.getElementById("fill-" + name).style.width = pct + "%";
+                document.getElementById("pct-" + name).textContent = pct.toFixed(1) + "%";
+            });
+        }
+
+        function smoothBlend(target) {
+            const next = {};
+            EMOTIONS.forEach((name) => {
+                next[name] = (smoothedScores[name] * (1 - SMOOTH_ALPHA)) + (target[name] * SMOOTH_ALPHA);
+            });
+            smoothedScores = next;
+            return next;
+        }
+
+        function normalizePercentages(raw) {
+            const out = {};
+            let total = 0;
+            EMOTIONS.forEach((name) => {
+                const value = Number(raw[name] || 0);
+                out[name] = Number.isFinite(value) && value > 0 ? value : 0;
+                total += out[name];
+            });
+            if (total <= 0) {
+                return { ...NEUTRAL };
+            }
+            EMOTIONS.forEach((name) => {
+                out[name] = (out[name] / total) * 100;
+            });
+            return out;
+        }
+
+        function setNeutral() {
+            smoothedScores = smoothBlend(NEUTRAL);
+            updateScoreBars(smoothedScores);
+        }
+
+        function estimatePitchHz(samples, sampleRate) {
+            let bestLag = -1;
+            let bestCorr = 0;
+            const minLag = Math.floor(sampleRate / 340);
+            const maxLag = Math.floor(sampleRate / 85);
+
+            for (let lag = minLag; lag <= maxLag; lag += 1) {
+                let corr = 0;
+                for (let i = 0; i < samples.length - lag; i += 1) {
+                    corr += samples[i] * samples[i + lag];
+                }
+                if (corr > bestCorr) {
+                    bestCorr = corr;
+                    bestLag = lag;
+                }
+            }
+            if (bestLag <= 0) return prevPitch;
+            return sampleRate / bestLag;
+        }
+
+        function updateCombinedScores() {
+            const now = Date.now();
+            const hasVoice = (now - lastVoiceMs) < TONE_HOLD_MS;
+            const hasText = promptEl.value.trim().length > 0;
+
+            const wText = hasText ? (hasVoice ? 0.8 : 0.92) : 0.2;
+            const wTone = hasVoice ? (hasText ? 0.2 : 0.8) : 0.08;
+            const mixed = {};
+
+            EMOTIONS.forEach((name) => {
+                mixed[name] = (textScores[name] * wText) + (toneScores[name] * wTone);
+            });
+            updateScoreBars(smoothBlend(normalizePercentages(mixed)));
+        }
+
+        function computeToneScores() {
+            if (!analyser || !audioContext) return;
+
+            const buffer = new Float32Array(analyser.fftSize);
+            analyser.getFloatTimeDomainData(buffer);
+
+            let energy = 0;
+            let zcr = 0;
+            for (let i = 0; i < buffer.length; i += 1) {
+                const s = buffer[i];
+                energy += s * s;
+                if (i > 0 && ((buffer[i - 1] >= 0 && s < 0) || (buffer[i - 1] < 0 && s >= 0))) {
+                    zcr += 1;
+                }
+            }
+
+            const rms = Math.sqrt(energy / buffer.length);
+            const pitch = estimatePitchHz(buffer, audioContext.sampleRate);
+            const pitchDelta = Math.abs(pitch - prevPitch);
+            prevPitch = (prevPitch * 0.88) + (pitch * 0.12);
+
+            if (rms > TONE_VOICE_RMS) {
+                lastVoiceMs = Date.now();
+                const volume = Math.min(rms * 18, 1);
+                const pitchNorm = Math.max(0, Math.min((pitch - 90) / 230, 1));
+                const variationNorm = Math.max(0, Math.min(pitchDelta / 50, 1));
+                const zcrNorm = Math.min(zcr / 250, 1);
+                toneScores = normalizePercentages({
+                    joy: 0.20 + volume * 0.40 + pitchNorm * 0.20,
+                    sadness: 0.20 + (1 - volume) * 0.42 + (1 - pitchNorm) * 0.18,
+                    anger: 0.20 + volume * 0.33 + zcrNorm * 0.34,
+                    fear: 0.20 + variationNorm * 0.45 + zcrNorm * 0.15,
+                    surprise: 0.20 + variationNorm * 0.40 + pitchNorm * 0.25,
+                    disgust: 0.15 + zcrNorm * 0.25 + (1 - pitchNorm) * 0.2,
+                    neutral: 0.22 + (1 - variationNorm) * 0.22 + (1 - volume) * 0.1
+                });
+            } else {
+                toneScores = { ...NEUTRAL };
+            }
+
+            updateCombinedScores();
+            rafId = requestAnimationFrame(computeToneScores);
+        }
+
+        async function startToneTracking() {
+            if (audioContext) return;
+            mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioContext = new AudioContext();
+            const source = audioContext.createMediaStreamSource(mediaStream);
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 2048;
+            source.connect(analyser);
+            computeToneScores();
+        }
+
+        function stopToneTracking() {
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = null;
+            if (mediaStream) mediaStream.getTracks().forEach((track) => track.stop());
+            if (audioContext) audioContext.close();
+            mediaStream = null;
+            audioContext = null;
+            analyser = null;
+            toneScores = { ...NEUTRAL };
+            updateCombinedScores();
+        }
+
+        async function fetchEmotionScores(text) {
+            if (analyseAbort) analyseAbort.abort();
+            analyseAbort = new AbortController();
+
+            const response = await fetch("/analyse", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text }),
+                signal: analyseAbort.signal
+            });
+            if (!response.ok) {
+                throw new Error("Analyse request failed");
+            }
+            const data = await response.json();
+            const mapped = {};
+            (data.emotions || []).forEach((item) => {
+                if (!item || !item.label) return;
+                mapped[item.label.toLowerCase()] = Number(item.score || 0);
+            });
+            return normalizePercentages(mapped);
+        }
+
+        function scheduleEmotionUpdate() {
+            const text = promptEl.value.trim();
+            if (analyseTimer) clearTimeout(analyseTimer);
+
+            if (!text) {
+                if (analyseAbort) analyseAbort.abort();
+                textScores = { ...NEUTRAL };
+                updateCombinedScores();
+                return;
+            }
+
+            analyseTimer = setTimeout(async () => {
+                try {
+                    textScores = await fetchEmotionScores(text);
+                    updateCombinedScores();
+                } catch (_error) {
+                    // Keep last stable values on transient request/abort errors.
+                }
+            }, ANALYSE_DEBOUNCE_MS);
+        }
+
+        function setupSpeechRecognition() {
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) return;
+
+            recognition = new SR();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = "en-GB";
+            recognition.onresult = (event) => {
+                let transcript = "";
+                for (let i = 0; i < event.results.length; i += 1) {
+                    transcript += event.results[i][0].transcript + " ";
+                }
+                promptEl.value = transcript.trim();
+                scheduleEmotionUpdate();
+            };
+        }
+
+        async function startListening() {
+            try {
+                await startToneTracking();
+                if (recognition) recognition.start();
+                isListening = true;
+                micBtn.classList.add("active");
+                micStatus.textContent = "Listening and blending text + tone...";
+            } catch (_err) {
+                micStatus.textContent = "Microphone permission blocked.";
+            }
+        }
+
+        function stopListening() {
+            if (recognition) recognition.stop();
+            stopToneTracking();
+            isListening = false;
+            micBtn.classList.remove("active");
+            micStatus.textContent = "Mic idle.";
+        }
+
+        micBtn.addEventListener("click", async () => {
+            if (isListening) {
+                stopListening();
+            } else {
+                await startListening();
+            }
+        });
+
+        promptEl.addEventListener("input", scheduleEmotionUpdate);
+
+        function renderStyleSelector(index) {
+            selectedStyleIndex = Math.max(0, Math.min(2, index));
+            styleValue.textContent = STYLE_OPTIONS[selectedStyleIndex];
+            stylePill.style.transform = "translateX(" + (selectedStyleIndex * 100) + "%)";
+            styleBoxes.forEach((el, i) => {
+                el.classList.toggle("active", i === selectedStyleIndex);
+            });
+        }
+
+        function styleIndexFromX(clientX) {
+            const rect = styleSegment.getBoundingClientRect();
+            const rel = Math.max(0, Math.min(clientX - rect.left, rect.width));
+            return Math.max(0, Math.min(2, Math.round((rel / rect.width) * 2)));
+        }
+
+        styleBoxes.forEach((box) => {
+            box.addEventListener("click", () => renderStyleSelector(Number(box.dataset.styleIndex)));
+        });
+
+        styleSegment.addEventListener("pointerdown", (event) => {
+            draggingStyle = true;
+            styleSegment.setPointerCapture(event.pointerId);
+            renderStyleSelector(styleIndexFromX(event.clientX));
+        });
+
+        styleSegment.addEventListener("pointermove", (event) => {
+            if (!draggingStyle) return;
+            renderStyleSelector(styleIndexFromX(event.clientX));
+        });
+
+        styleSegment.addEventListener("pointerup", (event) => {
+            draggingStyle = false;
+            styleSegment.releasePointerCapture(event.pointerId);
+            renderStyleSelector(styleIndexFromX(event.clientX));
+        });
+
+        generateBtn.addEventListener("click", () => {
+            console.log("Generate placeholder", {
+                prompt: promptEl.value,
+                style: STYLE_OPTIONS[selectedStyleIndex]
+            });
+            alert("Generate is wired as placeholder for now.");
+        });
+
+        buildScoreRows();
+        updateScoreBars(NEUTRAL);
+        renderStyleSelector(0);
+        setupSpeechRecognition();
+    </script>
+</body>
+</html>

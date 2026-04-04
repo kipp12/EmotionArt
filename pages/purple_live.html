@@ -431,10 +431,10 @@
                 body: JSON.stringify({ text }),
                 signal: analyseAbort.signal
             });
-            if (!response.ok) {
-                throw new Error("Analyse request failed");
-            }
             const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.details || data.error || "Analyse request failed");
+            }
             const mapped = {};
             (data.emotions || []).forEach((item) => {
                 if (!item || !item.label) return;
@@ -458,8 +458,8 @@
                 try {
                     textScores = await fetchEmotionScores(text);
                     updateCombinedScores();
-                } catch (_error) {
-                    // Keep last stable values on transient request/abort errors.
+                } catch (error) {
+                    micStatus.textContent = error.message || "Analysis failed.";
                 }
             }, ANALYSE_DEBOUNCE_MS);
         }

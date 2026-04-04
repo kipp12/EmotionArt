@@ -1,4 +1,4 @@
-// Credit - Inspired by Zen Pots newyellow
+// Credit - Inspired by the original Zen Pots concept by newyellow.
 
 function buildScene(map) {
     const seed = Math.floor(Math.random() * 1000000000);

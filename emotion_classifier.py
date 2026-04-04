@@ -1,18 +1,28 @@
 from transformers import pipeline
 
 
-classifier = pipeline(
-    "text-classification",
-    model="j-hartmann/emotion-english-distilroberta-base",
-    top_k=None,
-)
+MODEL_NAME = "j-hartmann/emotion-english-distilroberta-base"
+_classifier = None
+
+
+def get_classifier():
+    global _classifier
+
+    if _classifier is None:
+        _classifier = pipeline(
+            "text-classification",
+            model=MODEL_NAME,
+            top_k=None,
+        )
+
+    return _classifier
 
 
 def analyse_emotion(text):
     if not text or not text.strip():
         return None
 
-    results = classifier(text)
+    results = get_classifier()(text)
 
     if isinstance(results[0], dict):
         scores = results

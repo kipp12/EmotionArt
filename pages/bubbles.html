@@ -40,7 +40,7 @@
 <nav class="nav">
     <a href="/">Waves</a>
     <a href="/bubbles" class="current">Bubbles</a>
-    <a href="/zen-pots">Zen Pots</a>
+    <a href="/flower-pots">Flower Pots</a>
 </nav>
 
 <div class="ui">
@@ -243,6 +243,9 @@
                 body: JSON.stringify({ text }),
             });
             const payload = await res.json();
+            if (!res.ok) {
+                throw new Error(payload.details || payload.error || 'Analyse request failed');
+            }
             spawnBlobs(payload.emotions);
             pushHistory(payload.emotions);
             document.getElementById('output').textContent =
@@ -253,7 +256,8 @@
                 isListening ? 'LISTENING...' : 'READY';
         } catch (err) {
             console.error(err);
-            document.getElementById('status').textContent = 'ERROR';
+            document.getElementById('output').textContent = err.message || 'Analysis failed.';
+            document.getElementById('status').textContent = 'MODEL ERROR';
         }
     }
 

@@ -1,4 +1,4 @@
-// Credit - Inspired by Zen Pots newyellow
+// Credit - Inspired by the original Zen Pots concept by newyellow.
 
 function buildAndStartScene(map) {
     zenState.current = { ...map };
@@ -49,6 +49,9 @@ async function analyseText(text) {
             body: JSON.stringify({ text }),
         });
         const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.details || payload.error || 'Analyse request failed');
+        }
         const map = emotionMapFromPayload(payload.emotions);
 
         buildAndStartScene(map);
@@ -60,7 +63,8 @@ async function analyseText(text) {
         status.textContent = isListening ? 'LISTENING...' : 'READY';
     } catch (error) {
         console.error(error);
-        status.textContent = 'ERROR';
+        document.getElementById('output').textContent = error.message || 'Analysis failed.';
+        status.textContent = 'MODEL ERROR';
     }
 }
 

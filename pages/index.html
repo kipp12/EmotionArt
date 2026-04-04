@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EmotionArt | Morphic Resonance</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/base.css') }}">
     <style>
         body { margin: 0; background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #glCanvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
@@ -37,7 +37,7 @@
 <nav class="nav">
     <a href="/" class="current">Waves</a>
     <a href="/bubbles">Bubbles</a>
-    <a href="/zen-pots">Zen Pots</a>
+    <a href="/flower-pots">Flower Pots</a>
 </nav>
 
 <div class="ui-container">
@@ -390,6 +390,9 @@
                 body: JSON.stringify({ text }),
             });
             const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.details || payload.error || 'Analyse request failed');
+            }
 
             // Raw scores for particles (immediate reaction)
             const raw = { anger:0, disgust:0, fear:0, joy:0, neutral:0, sadness:0, surprise:0 };
@@ -408,7 +411,8 @@
                 isListening ? 'LISTENING...' : 'READY';
         } catch (err) {
             console.error(err);
-            document.getElementById('recording-status').textContent = 'ERROR';
+            document.getElementById('classification-output').textContent = err.message || 'Analysis failed.';
+            document.getElementById('recording-status').textContent = 'MODEL ERROR';
         }
     }
 

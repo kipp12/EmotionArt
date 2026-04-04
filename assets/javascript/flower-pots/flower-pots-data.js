@@ -1,4 +1,4 @@
-// Credit - Inspired by Zen Pots newyellow
+// Credit - Inspired by the original Zen Pots concept by newyellow.
 
 const CURVES_IN = [
     x => x * x,

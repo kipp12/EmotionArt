@@ -7,6 +7,8 @@ classifier = pipeline(
     top_k=None
 )
 
+#analyse_emotion takes the a string as an input ('text') and spits out 7 
+
 def analyse_emotion(text):
     if not text or not text.strip():
         return None

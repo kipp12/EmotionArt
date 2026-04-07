@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_cors import CORS
-from emotion_classifier import analyse_emotion
+from emotion_classifier import analyse_emotion_base_model
 
 app = Flask(__name__, template_folder='pages', static_folder='assets', static_url_path='/assets')
 CORS(app)
@@ -37,7 +37,7 @@ def analyse():
     text = data.get('text', '')
 
     try:
-        emotions = analyse_emotion(text)
+        emotions = analyse_emotion_base_model(text)
     except Exception as exc:
         return jsonify({
             'error': 'Emotion model is unavailable. Please retry after the model download completes.',

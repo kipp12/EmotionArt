@@ -129,6 +129,20 @@ html[data-large-text="true"] .gallery-section-title {
     font-size: calc(100% + 3px);
 }
 
+html[data-large-text="true"] .brand-title {
+    font-size: clamp(0.88rem, 1.65vw, 1.05rem);
+}
+
+html[data-large-text="true"] .page-title {
+    font-size: clamp(1.45rem, 2.55vw, 1.95rem);
+}
+
+html[data-large-text="true"] .tile-title,
+html[data-large-text="true"] .gallery-title,
+html[data-large-text="true"] .gallery-section-title {
+    font-size: 1rem;
+}
+
 html[data-app-retro="reduced"][data-large-text="true"] body,
 html[data-app-retro="reduced"][data-large-text="true"] p,
 html[data-app-retro="reduced"][data-large-text="true"] span,
@@ -162,6 +176,20 @@ html[data-app-retro="reduced"][data-large-text="true"] .tile-title,
 html[data-app-retro="reduced"][data-large-text="true"] .gallery-title,
 html[data-app-retro="reduced"][data-large-text="true"] .gallery-section-title {
     font-size: calc(100% + 3px);
+}
+
+html[data-app-retro="reduced"][data-large-text="true"] .brand-title {
+    font-size: 1.05rem;
+}
+
+html[data-app-retro="reduced"][data-large-text="true"] .page-title {
+    font-size: 1.35rem;
+}
+
+html[data-app-retro="reduced"][data-large-text="true"] .tile-title,
+html[data-app-retro="reduced"][data-large-text="true"] .gallery-title,
+html[data-app-retro="reduced"][data-large-text="true"] .gallery-section-title {
+    font-size: 1rem;
 }
 
 html[data-app-retro="reduced"][data-large-text="true"] .brutal-button,
@@ -1163,6 +1191,14 @@ html[data-app-theme="dark"] .save-button {
     padding: 10px 12px;
     clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px));
     box-shadow: none;
+    background: var(--accent);
+    color: #fff9ef;
+}
+
+.save-button.brutal-button,
+.save-button.brutal-button.passive,
+.save-button.brutal-button:disabled,
+.save-button.brutal-button.passive:disabled {
     background: var(--accent);
     color: #fff9ef;
 }

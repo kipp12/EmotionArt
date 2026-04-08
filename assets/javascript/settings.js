@@ -9,11 +9,7 @@
         accessibility_focus_visibility: false,
         audio_default_mic: 'manual',
         audio_transcript_persistence: 'keep',
-<<<<<<< HEAD
         model_classifier: 'base',
-=======
-        model_classifier: 'default',
->>>>>>> f03669213480a7cae5fbabf2bb1f24090a503b40
         saving_format: 'png',
         saving_filename_pattern: 'MY [PAGE_NAME] ART [NUMBER]',
     };

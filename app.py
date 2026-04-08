@@ -181,9 +181,6 @@ def analyse():
     text = data.get('text', '')
     model_size = str(data.get('model', 'base')).strip().lower()
     
-    print("ANALYSE REQUEST DATA:", data)
-    print("MODEL SIZE RECEIVED:", model_size)
-
     if not text or not text.strip():
         return jsonify({'error': 'No text provided'}), 400
 

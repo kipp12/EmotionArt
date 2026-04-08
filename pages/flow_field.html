@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmotionArt | Flow Field</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/base.css') }}">
+
+    <style>
+        #p5-holder canvas {
+            position: absolute;
+            inset: 0;
+            width: 100% !important;
+            height: 100% !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        {% set themes_active = false %}
+        {% set gallery_active = false %}
+        {% set favourites_active = false %}
+        {% set settings_active = false %}
+        {% include '_sidebar.html' %}
+
+        <main class="app-main">
+            <header class="page-header">
+                <div>
+                    <h2 class="page-title">Flow Field</h2>
+                    <p class="page-credit">Crafted by Kipp Batchelor</p>
+                </div>
+            </header>
+
+            <section class="page-content stage-layout">
+                <div class="visual-stage">
+                    <div id="p5-holder"></div>
+                </div>
+
+                <div class="overlay-panel">
+                    <div class="control-dock">
+                        <div class="control-grid no-mode">
+                            <button id="mic-toggle" type="button" class="brutal-button passive">START LISTENING</button>
+                            <div class="text-input-wrap">
+                                <input id="text-input" class="text-input" type="text" placeholder="Type a thought, feeling, or memory...">
+                            </div>
+                            <button id="text-submit" class="text-submit" type="button">Generate</button>
+                        </div>
+                        <div class="readout-grid">
+                            <div class="readout-cell alt">
+                                <p class="meta-label">Status</p>
+                                <p id="status" class="status-text">READY</p>
+                            </div>
+                            <div class="readout-cell">
+                                <p class="meta-label">Emotion scores</p>
+                                <div id="output" class="score-list">Waiting for input...</div>
+                            </div>
+                            <div class="readout-cell alt">
+                                <p class="meta-label">Transcript</p>
+                                <pre id="transcript">Waiting for speech or text...</pre>
+                            </div>
+                            <div class="readout-cell save-cell">
+                                <button id="save-output" class="brutal-button passive save-button" type="button" disabled>Save</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+    <script src="{{ url_for('static', filename='javascript/gallery-save.js') }}"></script>
+    <script src="{{ url_for('static', filename='javascript/flow-field-app.js') }}"></script>
+</body>
+</html>

@@ -26,6 +26,7 @@ def page_display_name(page_name):
         'anamorphic_resonance': 'ANAMORPHIC RESONANCE',
         'bubbles': 'BUBBLES',
         'purple_live': 'PURPLE LIVE',
+        'flow_field': 'FLOW FIELD',
     }
     return mapping.get(page_name, page_name.replace('_', ' ').upper())
 
@@ -173,6 +174,10 @@ def flower_pots():
 @app.route('/zen-pots')
 def zen_pots_redirect():
     return redirect(url_for('flower_pots'))
+
+@app.route('/flow-field')
+def flow_field():
+    return render_template('flow_field.html')
 
 
 @app.route('/analyse', methods=['POST'])

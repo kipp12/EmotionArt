@@ -108,7 +108,7 @@
         loading.hidden = nextState !== 'loading';
 
         if (nextState === 'loading') {
-            copy.textContent = 'Large model is downloading. The download is 1.42GB and is rate limited. This can take around 10-15 minutes.';
+            copy.textContent = 'Large model is downloading. This can take around 10-15 minutes on a first time download.';
             return;
         }
 

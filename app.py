@@ -1,6 +1,11 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for, send_from_directory, abort
 from flask_cors import CORS
-from emotion_classifier import analyse_emotion
+from emotion_classifier import (
+    ModelLoadingError,
+    analyse_emotion,
+    ensure_classifier_loading,
+    get_model_status,
+)
 from pathlib import Path
 from datetime import datetime
 import base64
@@ -9,6 +14,9 @@ import re
 
 app = Flask(__name__, template_folder='pages', static_folder='assets', static_url_path='/assets')
 CORS(app)
+
+# Warm the fast model in the background during app startup so first use feels immediate.
+ensure_classifier_loading('base')
 
 BASE_DIR = Path(__file__).resolve().parent
 GALLERY_DIR = BASE_DIR / 'gallery'
@@ -198,7 +206,16 @@ def analyse():
 
     try:
         emotions = analyse_emotion(text, model_size=model_size)
+    except ModelLoadingError as exc:
+        status = get_model_status(model_size)
+        return jsonify({
+            'error': str(exc),
+            'details': f"{model_size.title()} model status: {status['state']}.",
+            'loading': True,
+            'model': model_size,
+        }), 503
     except Exception as exc:
+        ensure_classifier_loading(model_size)
         return jsonify({
             'error': 'Emotion model is unavailable. Please retry after the model download completes.',
             'details': str(exc),
@@ -211,6 +228,40 @@ def analyse():
         'text': text,
         'emotions': emotions,
         'model': model_size
+    })
+
+
+@app.route('/api/settings/model-status')
+def model_status():
+    model_size = str(request.args.get('model', 'base')).strip().lower()
+
+    if model_size not in ['base', 'large']:
+        return jsonify({'error': 'Invalid model selection'}), 400
+
+    status = get_model_status(model_size)
+    return jsonify({
+        'model': model_size,
+        'state': status['state'],
+        'details': status['error'],
+        'model_name': status['model_name'],
+    })
+
+
+@app.route('/api/settings/model-preload', methods=['POST'])
+def model_preload():
+    data = request.get_json(silent=True) or {}
+    model_size = str(data.get('model', 'base')).strip().lower()
+
+    if model_size not in ['base', 'large']:
+        return jsonify({'error': 'Invalid model selection'}), 400
+
+    state = ensure_classifier_loading(model_size)
+    status = get_model_status(model_size)
+    return jsonify({
+        'model': model_size,
+        'state': status['state'] if status['state'] != 'idle' else state,
+        'details': status['error'],
+        'model_name': status['model_name'],
     })
 
 

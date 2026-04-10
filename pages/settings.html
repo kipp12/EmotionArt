@@ -121,14 +121,20 @@
                                     <span>Choose between a fast model, or a more accurate but slower language processing model.</span>
                                 </span>
                                 <select class="settings-select" name="model_classifier">
-<<<<<<< HEAD
                                     <option value="base">Fast Model</option>
                                     <option value="large">Large Model</option>
-=======
-                                    <option value="default">Fast Model</option>
->>>>>>> f03669213480a7cae5fbabf2bb1f24090a503b40
                                 </select>
                             </label>
+                            <div class="settings-model-panel" id="model-download-panel" hidden>
+                                <div class="settings-model-header">
+                                    <strong id="model-download-title">Large Model Download</strong>
+                                    <span id="model-download-state" class="settings-model-chip" data-state="idle">Idle</span>
+                                </div>
+                                <p id="model-download-copy" class="settings-model-copy">Large model download has not started.</p>
+                                <p id="model-download-loading" class="settings-model-loading" hidden>
+                                    Loading<span class="settings-loading-dots" aria-hidden="true"></span>
+                                </p>
+                            </div>
                         </div>
                     </section>
 

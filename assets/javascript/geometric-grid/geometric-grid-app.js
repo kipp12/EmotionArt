@@ -1,53 +1,31 @@
-// Credit - Inspired by the original Zen Pots concept by newyellow.
+// Geometric Grid - app controller (mic, text input, analyse, save).
 
-function buildAndStartScene(map) {
-    zenState.current = { ...map };
-    zenState.scene = buildScene(map);
-}
+const button = document.getElementById('mic-toggle');
+const textInput = document.getElementById('text-input');
+const textSubmit = document.getElementById('text-submit');
+const saveButton = document.getElementById('save-output');
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-function getStageSize() {
-    const holder = document.getElementById('p5-holder');
-    if (!holder) {
-        return { width: window.innerWidth, height: window.innerHeight };
-    }
+let isListening = false;
+let recognition = null;
+let committedTranscript = '';
+let liveTranscript = '';
+let shouldAnalyseOnStop = false;
+let lastEmotions = [];
+let lastTranscriptText = '';
 
-    return {
-        width: holder.clientWidth || window.innerWidth,
-        height: holder.clientHeight || window.innerHeight,
+function getAppSettings() {
+    return window.getEmotionArtSettings ? window.getEmotionArtSettings() : {
+        audio_default_mic: 'manual',
+        audio_transcript_persistence: 'keep',
+        model_classifier: 'base',
     };
 }
 
-function setup() {
-    const stageSize = getStageSize();
-    const canvas = createCanvas(stageSize.width, stageSize.height);
-    canvas.parent('p5-holder');
-    colorMode(HSB, 360, 100, 100, 1);
-    noStroke();
-    buildAndStartScene(zenState.current);
-}
-
-function draw() {
-    if (!zenState.scene) return;
-
-    const scene = zenState.scene;
-    for (let i = 0; i < scene.stepsPerFrame && scene.queueIndex < scene.queue.length; i++) {
-        drawQueueStep(scene, scene.queue[scene.queueIndex]);
-        scene.queueIndex += 1;
-    }
-
-    if (scene.queueIndex >= scene.queue.length) {
-        scene.completed = true;
-    }
-
-    compositeScene(scene);
-}
-
-function windowResized() {
-    const stageSize = getStageSize();
-    resizeCanvas(stageSize.width, stageSize.height);
-    if (zenState.current) {
-        buildAndStartScene(zenState.current);
-    }
+function updateTranscript(text) {
+    const transcript = document.getElementById('transcript');
+    if (!transcript) return;
+    transcript.textContent = text || 'Waiting for speech or text...';
 }
 
 async function analyseText(text) {
@@ -71,9 +49,9 @@ async function analyseText(text) {
             throw new Error(payload.error || payload.details || 'Analyse request failed');
         }
         lastEmotions = payload.emotions;
-        const map = emotionMapFromPayload(payload.emotions);
 
-        buildAndStartScene(map);
+        applyEmotionPalette(payload.emotions);
+
         document.getElementById('output').innerHTML = payload.emotions
             .slice(0, 5)
             .map(entry => `
@@ -96,40 +74,6 @@ async function analyseText(text) {
     }
 }
 
-const button = document.getElementById('mic-toggle');
-const paletteSelect = document.getElementById('palette-select');
-const paletteValue = document.getElementById('palette-value');
-const textInput = document.getElementById('text-input');
-const textSubmit = document.getElementById('text-submit');
-const saveButton = document.getElementById('save-output');
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let isListening = false;
-let recognition = null;
-let committedTranscript = '';
-let liveTranscript = '';
-let shouldAnalyseOnStop = false;
-let lastEmotions = [];
-let lastTranscriptText = '';
-
-function getAppSettings() {
-    return window.getEmotionArtSettings ? window.getEmotionArtSettings() : {
-        audio_default_mic: 'manual',
-        audio_transcript_persistence: 'keep',
-        model_classifier: 'base',
-    };
-}
-
-function syncPaletteSelect() {
-    if (paletteSelect) {
-        paletteSelect.value = zenState.themeMode;
-    }
-    if (paletteValue) {
-        paletteValue.textContent = zenState.themeMode === 'dark'
-            ? 'Sombre Neon (Dark)'
-            : 'Soft Pastel (Light)';
-    }
-}
-
 async function submitText() {
     const text = textInput.value.trim();
     if (!text) return;
@@ -137,26 +81,10 @@ async function submitText() {
     await analyseText(text);
 }
 
-function updateTranscript(text) {
-    const transcript = document.getElementById('transcript');
-    if (!transcript) return;
-    transcript.textContent = text || 'Waiting for speech or text...';
-}
-
 textSubmit.addEventListener('click', submitText);
 textInput.addEventListener('keydown', event => {
     if (event.key === 'Enter') submitText();
 });
-
-if (paletteSelect) {
-    paletteSelect.addEventListener('change', () => {
-        zenState.themeMode = paletteSelect.value;
-        syncPaletteSelect();
-        buildAndStartScene(zenState.current);
-    });
-}
-
-syncPaletteSelect();
 
 if (SpeechRecognition) {
     recognition = new SpeechRecognition();
@@ -208,7 +136,7 @@ if (SpeechRecognition) {
     recognition.addEventListener('error', event => {
         if (event.error !== 'no-speech') {
             isListening = false;
-            button.textContent = 'Start Listening';
+            button.textContent = 'START LISTENING';
             button.classList.remove('active');
             document.getElementById('status').textContent = 'MIC ERROR';
         }
@@ -248,7 +176,7 @@ if (SpeechRecognition) {
 
 if (window.saveArtwork) {
     window.saveArtwork({
-        pageName: 'flower_pots',
+        pageName: 'geometric_grid',
         captureImage: () => {
             const holderCanvas = document.querySelector('#p5-holder canvas');
             if (!holderCanvas) {

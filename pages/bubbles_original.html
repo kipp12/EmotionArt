@@ -237,17 +237,26 @@
     }
 
     // ─── Analyse Handler ──────────────────────────────────────
+    function getAppSettings() {
+        return window.parent?.getEmotionArtSettings ? window.parent.getEmotionArtSettings() : {
+            model_classifier: 'base',
+        };
+    }
+
     async function analyseText(text) {
         document.getElementById('status').textContent = 'ANALYSING...';
         try {
             const res = await fetch('/analyse', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text }),
+                body: JSON.stringify({
+                    text,
+                    model: getAppSettings().model_classifier || 'base',
+                }),
             });
             const payload = await res.json();
             if (!res.ok) {
-                throw new Error(payload.details || payload.error || 'Analyse request failed');
+                throw new Error(payload.error || payload.details || 'Analyse request failed');
             }
             spawnBlobs(payload.emotions);
             pushHistory(payload.emotions);

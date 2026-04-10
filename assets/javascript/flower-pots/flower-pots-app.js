@@ -61,11 +61,14 @@ async function analyseText(text) {
         const response = await fetch('/analyse', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text }),
+            body: JSON.stringify({
+                text,
+                model: getAppSettings().model_classifier || 'base',
+            }),
         });
         const payload = await response.json();
         if (!response.ok) {
-            throw new Error(payload.details || payload.error || 'Analyse request failed');
+            throw new Error(payload.error || payload.details || 'Analyse request failed');
         }
         lastEmotions = payload.emotions;
         const map = emotionMapFromPayload(payload.emotions);
@@ -112,6 +115,7 @@ function getAppSettings() {
     return window.getEmotionArtSettings ? window.getEmotionArtSettings() : {
         audio_default_mic: 'manual',
         audio_transcript_persistence: 'keep',
+        model_classifier: 'base',
     };
 }
 

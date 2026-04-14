@@ -61,587 +61,582 @@
         </main>
     </div>
 
-<!-- ─── Shared vertex shader ──────────────────────────────────── -->
+<!-- Vertex shader (a_pos always at location 0) -->
 <script id="vs" type="x-shader/x-vertex">
 attribute vec2 a_pos;
 void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
 </script>
 
-<!-- ─── Initialise texture: A=1, B=0 everywhere ──────────────── -->
+<!-- Init: fill texture with A=1, B=0 -->
 <script id="init-fs" type="x-shader/x-fragment">
 precision highp float;
 void main() { gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); }
 </script>
 
-<!-- ─── Seed shader: draw a circular patch of B chemical ─────── -->
+<!-- Seed: draw a circular patch of (A=0.5, B=0.25) -->
 <script id="seed-fs" type="x-shader/x-fragment">
 precision highp float;
-uniform sampler2D u_tex;
+uniform sampler2D u_prev;
 uniform vec2  u_simSize;
-uniform vec2  u_center;   /* seed centre in pixel coords */
-uniform float u_radius;   /* seed radius in pixels */
-
+uniform vec2  u_center;
+uniform float u_radius;
 void main() {
     vec2 uv   = gl_FragCoord.xy / u_simSize;
-    float dist = length(gl_FragCoord.xy - u_center);
-    vec2 ab = texture2D(u_tex, uv).rg;
-    if (dist <= u_radius) {
+    float d   = length(gl_FragCoord.xy - u_center);
+    vec4  cur = texture2D(u_prev, uv);
+    if (d <= u_radius) {
         gl_FragColor = vec4(0.5, 0.25, 0.0, 1.0);
     } else {
-        gl_FragColor = vec4(ab.r, ab.g, 0.0, 1.0);
+        gl_FragColor = vec4(cur.r, cur.g, 0.0, 1.0);
     }
 }
 </script>
 
-<!-- ─── Gray-Scott simulation step ───────────────────────────── -->
+<!-- Gray-Scott simulation step -->
 <script id="sim-fs" type="x-shader/x-fragment">
 precision highp float;
-uniform sampler2D u_tex;
-uniform vec2  u_texSize;
+uniform sampler2D u_prev;
+uniform vec2  u_simSize;
 uniform float u_f;
 uniform float u_k;
 uniform float u_da;
 uniform float u_db;
-
 void main() {
-    vec2 uv = gl_FragCoord.xy / u_texSize;
-    vec2 px = 1.0 / u_texSize;
-
-    vec2 c  = texture2D(u_tex, uv).rg;
-    vec2 n  = texture2D(u_tex, uv + vec2( 0.0,  px.y)).rg;
-    vec2 s  = texture2D(u_tex, uv + vec2( 0.0, -px.y)).rg;
-    vec2 e  = texture2D(u_tex, uv + vec2( px.x,  0.0)).rg;
-    vec2 w  = texture2D(u_tex, uv + vec2(-px.x,  0.0)).rg;
-    vec2 ne = texture2D(u_tex, uv + vec2( px.x,  px.y)).rg;
-    vec2 nw = texture2D(u_tex, uv + vec2(-px.x,  px.y)).rg;
-    vec2 se = texture2D(u_tex, uv + vec2( px.x, -px.y)).rg;
-    vec2 sw = texture2D(u_tex, uv + vec2(-px.x, -px.y)).rg;
-
-    /* 9-point weighted Laplacian */
-    vec2 lap = (n + s + e + w) * 0.2
-             + (ne + nw + se + sw) * 0.05
-             - c;
-
+    vec2 uv = gl_FragCoord.xy / u_simSize;
+    vec2 px = 1.0 / u_simSize;
+    vec2 c  = texture2D(u_prev, uv).rg;
+    vec2 n  = texture2D(u_prev, uv + vec2( 0.0,  px.y)).rg;
+    vec2 s  = texture2D(u_prev, uv + vec2( 0.0, -px.y)).rg;
+    vec2 e  = texture2D(u_prev, uv + vec2( px.x,  0.0)).rg;
+    vec2 w  = texture2D(u_prev, uv + vec2(-px.x,  0.0)).rg;
+    vec2 ne = texture2D(u_prev, uv + vec2( px.x,  px.y)).rg;
+    vec2 nw = texture2D(u_prev, uv + vec2(-px.x,  px.y)).rg;
+    vec2 se = texture2D(u_prev, uv + vec2( px.x, -px.y)).rg;
+    vec2 sw = texture2D(u_prev, uv + vec2(-px.x, -px.y)).rg;
+    vec2 lap = (n+s+e+w)*0.2 + (ne+nw+se+sw)*0.05 - c;
     float a   = c.r;
     float b   = c.g;
     float abb = a * b * b;
-
-    float na = clamp(a + (u_da * lap.r - abb + u_f * (1.0 - a)), 0.0, 1.0);
-    float nb = clamp(b + (u_db * lap.g + abb - (u_f + u_k) * b), 0.0, 1.0);
-
+    float na  = clamp(a + u_da*lap.r - abb + u_f*(1.0-a), 0.0, 1.0);
+    float nb  = clamp(b + u_db*lap.g + abb - (u_f+u_k)*b, 0.0, 1.0);
     gl_FragColor = vec4(na, nb, 0.0, 1.0);
 }
 </script>
 
-<!-- ─── Render / colourize ────────────────────────────────────── -->
+<!-- Render: colourize the B field -->
 <script id="render-fs" type="x-shader/x-fragment">
 precision highp float;
-uniform sampler2D u_tex;
+uniform sampler2D u_prev;
 uniform vec2  u_screenSize;
 uniform vec2  u_simPx;
 uniform vec3  u_colA;
 uniform vec3  u_colB;
 uniform float u_time;
-
 void main() {
-    vec2 uv = gl_FragCoord.xy / u_screenSize;
+    vec2  uv = gl_FragCoord.xy / u_screenSize;
+    float b  = texture2D(u_prev, uv).g;
 
-    float b  = texture2D(u_tex, uv).g;
+    /* Edge / normal for subtle lighting */
+    float bR = texture2D(u_prev, uv + vec2( u_simPx.x, 0.0)).g;
+    float bL = texture2D(u_prev, uv - vec2( u_simPx.x, 0.0)).g;
+    float bU = texture2D(u_prev, uv + vec2(0.0,  u_simPx.y)).g;
+    float bD = texture2D(u_prev, uv - vec2(0.0,  u_simPx.y)).g;
+    vec2  grad = vec2(bR - bL, bU - bD);
+    vec3  norm = normalize(vec3(-grad * 5.0, 0.4));
+    vec3  light = normalize(vec3(cos(u_time * 0.25), sin(u_time * 0.25), 1.0));
+    float diff  = max(dot(norm, light), 0.0);
+    float spec  = pow(max(dot(reflect(-light, norm), vec3(0.0, 0.0, 1.0)), 0.0), 12.0);
 
-    float bR = texture2D(u_tex, uv + vec2( u_simPx.x,  0.0      )).g;
-    float bL = texture2D(u_tex, uv + vec2(-u_simPx.x,  0.0      )).g;
-    float bU = texture2D(u_tex, uv + vec2( 0.0,         u_simPx.y)).g;
-    float bD = texture2D(u_tex, uv + vec2( 0.0,        -u_simPx.y)).g;
+    /* Blob mask — smoothstep with wider range so partial-B pixels show */
+    float t = smoothstep(0.05, 0.55, b);
 
-    vec2  grad   = vec2(bR - bL, bU - bD);
-    float edge   = length(grad);
+    /* Background: guaranteed visible (clamped to ≥ 0.06 per channel) */
+    vec3 bg  = max(u_colA, vec3(0.06));
+    vec3 col = mix(bg, u_colB, t);
 
-    /* Fake 3-D surface normal → goo lighting */
-    vec3 normal   = normalize(vec3(-grad * 6.0, 0.5));
-    vec3 lightDir = normalize(vec3(cos(u_time * 0.25), sin(u_time * 0.25), 1.2));
-    float diff    = max(dot(normal, lightDir), 0.0);
-    float spec    = pow(max(dot(reflect(-lightDir, normal), vec3(0.0, 0.0, 1.0)), 0.0), 24.0);
+    /* Lighting only on blob region */
+    col = mix(col, col * (0.35 + diff * 0.65), t);
+    col += u_colB * spec * 0.35 * t;
+    col += u_colB * length(grad) * 1.5 * (1.0 - t + 0.1);
 
-    float t   = smoothstep(0.08, 0.45, b);
-    vec3  col = mix(u_colA * 0.08, u_colB, t);
-
-    col *= 0.25 + diff * 0.75;
-    col += vec3(spec * 0.55);
-    col += u_colB * edge * 1.4;
-    col += u_colB * smoothstep(0.42, 0.65, b) * 0.25;
-
-    /* Vignette */
+    /* Subtle vignette */
     vec2 vUV = uv * 2.0 - 1.0;
-    col *= 1.0 - dot(vUV, vUV) * 0.28;
+    col *= 0.88 + 0.12 * (1.0 - dot(vUV, vUV));
 
-    col = 1.0 - exp(-col * 2.2);
-    gl_FragColor = vec4(pow(col, vec3(0.85)), 1.0);
+    /* Tone-map + gamma */
+    col = 1.0 - exp(-col * 2.0);
+    gl_FragColor = vec4(pow(clamp(col, 0.0, 1.0), vec3(0.85)), 1.0);
 }
 </script>
 
     <script src="{{ url_for('static', filename='javascript/gallery-save.js') }}"></script>
     <script>
-    // ─── Constants ───────────────────────────────────────────────
+    // Constants
     const SIM_W           = 512;
     const SIM_H           = 512;
     const STEPS_PER_FRAME = 10;
     const HISTORY_SIZE    = 8;
 
-    // Gray-Scott parameters per emotion — each lands in a distinct
-    // named region of the G-S phase diagram (worms, mitosis, etc.)
     const EMOTION_PARAMS = {
-        anger:    { f: 0.078, k: 0.061, da: 0.2097, db: 0.105 }, // chaotic worms
-        joy:      { f: 0.035, k: 0.060, da: 0.2097, db: 0.105 }, // mitosis / expanding spots
-        sadness:  { f: 0.014, k: 0.054, da: 0.2097, db: 0.105 }, // slow drifting spots
-        fear:     { f: 0.041, k: 0.060, da: 0.2097, db: 0.105 }, // labyrinthine
-        surprise: { f: 0.062, k: 0.061, da: 0.2097, db: 0.105 }, // U-skate spirals
-        disgust:  { f: 0.039, k: 0.058, da: 0.2097, db: 0.105 }, // large blobs
-        neutral:  { f: 0.037, k: 0.065, da: 0.2097, db: 0.105 }, // stable dots
+        anger:    { f: 0.078, k: 0.061, da: 0.2097, db: 0.105 },
+        joy:      { f: 0.035, k: 0.060, da: 0.2097, db: 0.105 },
+        sadness:  { f: 0.014, k: 0.054, da: 0.2097, db: 0.105 },
+        fear:     { f: 0.041, k: 0.060, da: 0.2097, db: 0.105 },
+        surprise: { f: 0.062, k: 0.061, da: 0.2097, db: 0.105 },
+        disgust:  { f: 0.039, k: 0.058, da: 0.2097, db: 0.105 },
+        neutral:  { f: 0.037, k: 0.065, da: 0.2097, db: 0.105 },
     };
-
     const EMOTION_COLORS = {
-        anger:    { bg: [0.05, 0.00, 0.00], blob: [1.00, 0.05, 0.00] },
-        joy:      { bg: [0.05, 0.04, 0.00], blob: [1.00, 0.85, 0.00] },
-        sadness:  { bg: [0.00, 0.00, 0.05], blob: [0.00, 0.35, 1.00] },
-        fear:     { bg: [0.02, 0.00, 0.05], blob: [0.55, 0.00, 1.00] },
-        surprise: { bg: [0.00, 0.04, 0.05], blob: [0.80, 1.00, 1.00] },
-        disgust:  { bg: [0.00, 0.04, 0.00], blob: [0.10, 0.90, 0.10] },
-        neutral:  { bg: [0.00, 0.02, 0.03], blob: [0.25, 0.55, 0.70] },
+        anger:    { bg: [0.05,0.00,0.00], blob: [1.00,0.05,0.00] },
+        joy:      { bg: [0.05,0.04,0.00], blob: [1.00,0.85,0.00] },
+        sadness:  { bg: [0.00,0.00,0.05], blob: [0.00,0.35,1.00] },
+        fear:     { bg: [0.02,0.00,0.05], blob: [0.55,0.00,1.00] },
+        surprise: { bg: [0.00,0.04,0.05], blob: [0.80,1.00,1.00] },
+        disgust:  { bg: [0.00,0.04,0.00], blob: [0.10,0.90,0.10] },
+        neutral:  { bg: [0.00,0.02,0.03], blob: [0.25,0.55,0.70] },
     };
+    const EMOTION_KEYS = ['anger','disgust','fear','joy','neutral','sadness','surprise'];
 
-    const EMOTION_KEYS = ['anger', 'disgust', 'fear', 'joy', 'neutral', 'sadness', 'surprise'];
-
-    // ─── WebGL2 Setup ────────────────────────────────────────────
+    // Canvas & Context
     const canvas = document.getElementById('rdCanvas');
-    // preserveDrawingBuffer is required for canvas.toDataURL (gallery save)
-    const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true });
 
+    // Size the canvas pixel buffer to match its CSS size BEFORE
+    // creating the context, so we never need to resize it later
+    // (resizing after context creation can discard GL state).
+    function syncCanvasSize() {
+        const w = canvas.clientWidth  || canvas.offsetWidth  || 512;
+        const h = canvas.clientHeight || canvas.offsetHeight || 512;
+        if (canvas.width !== w || canvas.height !== h) {
+            canvas.width  = w;
+            canvas.height = h;
+        }
+    }
+    syncCanvasSize();
+
+    const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true });
     if (!gl) {
         document.getElementById('recording-status').textContent = 'WebGL2 required';
         throw new Error('WebGL2 not supported');
     }
 
-    // Attempt to enable float framebuffers; fall back to RGBA8 if unavailable
-    const floatSupported = !!gl.getExtension('EXT_color_buffer_float');
-    const INTERNAL_FMT   = floatSupported ? gl.RGBA32F : gl.RGBA8;
-    const TEXEL_TYPE     = floatSupported ? gl.FLOAT   : gl.UNSIGNED_BYTE;
+    const floatOk      = !!gl.getExtension('EXT_color_buffer_float');
+    // LINEAR filtering on RGBA32F requires a separate extension.
+    // Without it the sampler silently returns vec4(0) — causing all-black output.
+    // NEAREST always works for float textures and is equivalent for simulation
+    // passes that sample at exact pixel centres.
+    const floatLinearOk = floatOk && !!gl.getExtension('OES_texture_float_linear');
+    const INT_FMT   = floatOk ? gl.RGBA32F : gl.RGBA8;
+    const TEX_TYPE  = floatOk ? gl.FLOAT   : gl.UNSIGNED_BYTE;
+    const TEX_FILT  = floatLinearOk || !floatOk ? gl.LINEAR : gl.NEAREST;
+    console.log('[RD] EXT_color_buffer_float:', floatOk,
+                '| OES_texture_float_linear:', floatLinearOk,
+                '| format:', floatOk ? 'RGBA32F' : 'RGBA8',
+                '| filter:', TEX_FILT === gl.LINEAR ? 'LINEAR' : 'NEAREST');
 
-    console.log('[RD] Float FBO support:', floatSupported, '— using', floatSupported ? 'RGBA32F' : 'RGBA8');
-
-    // ─── Shader Utilities ────────────────────────────────────────
-    function compileShader(type, src) {
+    // Shader Helpers
+    function compile(type, src) {
         const s = gl.createShader(type);
         gl.shaderSource(s, src);
         gl.compileShader(s);
         if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
-            console.error('Shader compile error:', gl.getShaderInfoLog(s));
+            console.error('Shader error:', gl.getShaderInfoLog(s));
         return s;
     }
 
+    // Bind a_pos to location 0 in every program so bindQuad()
+    // always works without needing to know the program.
     function makeProgram(vsSrc, fsSrc) {
         const p = gl.createProgram();
-        gl.attachShader(p, compileShader(gl.VERTEX_SHADER,   vsSrc));
-        gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fsSrc));
+        gl.attachShader(p, compile(gl.VERTEX_SHADER,   vsSrc));
+        gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fsSrc));
+        gl.bindAttribLocation(p, 0, 'a_pos');
         gl.linkProgram(p);
         if (!gl.getProgramParameter(p, gl.LINK_STATUS))
-            console.error('Program link error:', gl.getProgramInfoLog(p));
+            console.error('Link error:', gl.getProgramInfoLog(p));
         return p;
     }
 
-    const vsSrc      = document.getElementById('vs').text;
-    const initProg   = makeProgram(vsSrc, document.getElementById('init-fs').text);
-    const seedProg   = makeProgram(vsSrc, document.getElementById('seed-fs').text);
-    const simProg    = makeProgram(vsSrc, document.getElementById('sim-fs').text);
-    const renderProg = makeProgram(vsSrc, document.getElementById('render-fs').text);
+    const VS       = document.getElementById('vs').textContent;
+    const initProg = makeProgram(VS, document.getElementById('init-fs').textContent);
+    const seedProg = makeProgram(VS, document.getElementById('seed-fs').textContent);
+    const simProg  = makeProgram(VS, document.getElementById('sim-fs').textContent);
+    const rndrProg = makeProgram(VS, document.getElementById('render-fs').textContent);
 
-    // Fullscreen quad
+    // Fullscreen quad — always at attrib location 0
     const quadBuf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
     gl.bufferData(gl.ARRAY_BUFFER,
-        new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]),
-        gl.STATIC_DRAW);
+        new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
 
-    function bindQuad(prog) {
+    function bindQuad() {
         gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-        const loc = gl.getAttribLocation(prog, 'a_pos');
-        gl.enableVertexAttribArray(loc);
-        gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     }
 
-    // ─── Textures & FBOs ─────────────────────────────────────────
-    function makeTexture() {
-        const tex = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, tex);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    // Ping-Pong Textures & FBOs
+    function makeTex() {
+        const t = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, t);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, TEX_FILT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, TEX_FILT);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-        gl.texImage2D(gl.TEXTURE_2D, 0, INTERNAL_FMT, SIM_W, SIM_H, 0, gl.RGBA, TEXEL_TYPE, null);
-        return tex;
+        gl.texImage2D(gl.TEXTURE_2D, 0, INT_FMT, SIM_W, SIM_H, 0,
+                      gl.RGBA, TEX_TYPE, null);
+        return t;
     }
 
     function makeFBO(tex) {
-        const fbo = gl.createFramebuffer();
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-        const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-        if (status !== gl.FRAMEBUFFER_COMPLETE)
-            console.error('[RD] Framebuffer incomplete — status:', status);
+        const f = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                                gl.TEXTURE_2D, tex, 0);
+        const st = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+        if (st !== gl.FRAMEBUFFER_COMPLETE)
+            console.error('[RD] FBO incomplete, status=', st);
+        else
+            console.log('[RD] FBO complete ✓');
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        return fbo;
+        return f;
     }
 
-    let texPing = makeTexture();
-    let texPong = makeTexture();
-    let fboPing = makeFBO(texPing);
-    let fboPong = makeFBO(texPong);
+    let texA = makeTex(), texB = makeTex();
+    let fboA = makeFBO(texA), fboB = makeFBO(texB);
 
-    // ─── Initialise both textures via shader (A=1, B=0) ─────────
-    // Using a shader avoids typed-array format mismatches entirely
-    function initTexture(fbo) {
-        gl.useProgram(initProg);
-        bindQuad(initProg);
+    // Helper: swap ping-pong buffers
+    function swap() {
+        let t = texA; texA = texB; texB = t;
+        let f = fboA; fboA = fboB; fboB = f;
+    }
+
+    // Pass helpers
+    function drawToFBO(fbo, prog, setupUniforms) {
+        gl.useProgram(prog);
+        bindQuad();
         gl.viewport(0, 0, SIM_W, SIM_H);
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.activeTexture(gl.TEXTURE0);
+        setupUniforms(prog);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
-    initTexture(fboPing);
-    initTexture(fboPong);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-    // ─── Seed Injection (shader-based) ───────────────────────────
-    // Each seed is drawn as a circle into the current ping texture
-    // via a read-modify-write shader pass, then swap ping/pong.
+    // Initialise both textures: A=1, B=0
+    function initBoth() {
+        drawToFBO(fboA, initProg, () => {});
+        drawToFBO(fboB, initProg, () => {});
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+        // Verify init worked by reading back one pixel
+        const buf = floatOk ? new Float32Array(4) : new Uint8Array(4);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fboA);
+        gl.readPixels(256, 256, 1, 1, gl.RGBA, TEX_TYPE, buf);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        console.log('[RD] Init readback pixel [256,256]:', buf[0], buf[1], buf[2], buf[3]);
+    }
+    initBoth();
+
+    // Seed injection
     const seedLoc = {
-        tex:     gl.getUniformLocation(seedProg, 'u_tex'),
+        prev:    gl.getUniformLocation(seedProg, 'u_prev'),
         simSize: gl.getUniformLocation(seedProg, 'u_simSize'),
         center:  gl.getUniformLocation(seedProg, 'u_center'),
         radius:  gl.getUniformLocation(seedProg, 'u_radius'),
     };
 
-    function addSeed(cx, cy, radius) {
-        gl.useProgram(seedProg);
-        bindQuad(seedProg);
-        gl.viewport(0, 0, SIM_W, SIM_H);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fboPong);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, texPing);
-        gl.uniform1i(seedLoc.tex, 0);
-        gl.uniform2f(seedLoc.simSize, SIM_W, SIM_H);
-        gl.uniform2f(seedLoc.center, cx, cy);
-        gl.uniform1f(seedLoc.radius, radius);
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
-        let tmp;
-        tmp = texPing; texPing = texPong; texPong = tmp;
-        tmp = fboPing; fboPing = fboPong; fboPong = tmp;
+    function addSeed(cx, cy, r) {
+        drawToFBO(fboB, seedProg, () => {
+            gl.bindTexture(gl.TEXTURE_2D, texA);
+            gl.uniform1i(seedLoc.prev,    0);
+            gl.uniform2f(seedLoc.simSize, SIM_W, SIM_H);
+            gl.uniform2f(seedLoc.center,  cx, cy);
+            gl.uniform1f(seedLoc.radius,  r);
+        });
+        swap();
     }
 
     function addSeeds(count, radius) {
-        for (let n = 0; n < count; n++) {
-            const cx = Math.random() * SIM_W;
-            const cy = Math.random() * SIM_H;
-            addSeed(cx, cy, radius);
-        }
+        for (let i = 0; i < count; i++)
+            addSeed(Math.random()*SIM_W, Math.random()*SIM_H, radius);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
 
-    addSeeds(25, 8); // initial seeds so patterns start immediately
+    addSeeds(25, 8);  // initial seeds
 
-    // ─── Emotion & Parameter State ───────────────────────────────
+    // Diagnostic readback: confirm seeds exist
+    {
+        const buf = floatOk ? new Float32Array(4) : new Uint8Array(4);
+        const scale = floatOk ? 1 : 1/255;
+        // Sample centre of texture — likely seeded since we drop 25 seeds
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fboA);
+        gl.readPixels(256, 256, 1, 1, gl.RGBA, TEX_TYPE, buf);
+        const r0 = (buf[0]*scale).toFixed(3), g0 = (buf[1]*scale).toFixed(3);
+        console.log('[RD] Seed readback [256,256]: A='+r0+' B='+g0,
+                    '| expect B>0 if seeded there');
+        // Also sample corner (unlikely to be seeded)
+        gl.readPixels(10, 10, 1, 1, gl.RGBA, TEX_TYPE, buf);
+        const r1 = (buf[0]*scale).toFixed(3), g1 = (buf[1]*scale).toFixed(3);
+        console.log('[RD] Seed readback [10,10]:   A='+r1+' B='+g1,
+                    '| expect A≈1 B≈0');
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+
+    // Emotion state
     const emotionHistory = [];
-    let curF = 0.037, curK = 0.065, curDa = 0.2097, curDb = 0.105;
-    let curColBg   = [0.0, 0.02, 0.03];
-    let curColBlob = [0.25, 0.55, 0.7];
-    let tarColBg   = [...curColBg];
-    let tarColBlob = [...curColBlob];
+    let curF=0.037, curK=0.065, curDa=0.2097, curDb=0.105;
+    let curBg=[0.0,0.02,0.03], curBlob=[0.25,0.55,0.7];
+    let tarBg=[...curBg],     tarBlob=[...curBlob];
 
-    function blendParams(emotions) {
-        let totalW = 0, f = 0, k = 0, da = 0, db = 0;
-        const bg = [0, 0, 0], blob = [0, 0, 0];
+    function blendParams(emo) {
+        let w=0, f=0, k=0, da=0, db=0, bg=[0,0,0], bl=[0,0,0];
         EMOTION_KEYS.forEach(em => {
-            const score = emotions[em] || 0;
-            const p = EMOTION_PARAMS[em];
-            const c = EMOTION_COLORS[em];
-            const w = score * score;
-            f += p.f * w; k += p.k * w;
-            da += p.da * w; db += p.db * w;
-            for (let i = 0; i < 3; i++) {
-                bg[i]   += c.bg[i]   * w;
-                blob[i] += c.blob[i] * w;
-            }
-            totalW += w;
+            const s=emo[em]||0, sq=s*s;
+            const p=EMOTION_PARAMS[em], c=EMOTION_COLORS[em];
+            f+=p.f*sq; k+=p.k*sq; da+=p.da*sq; db+=p.db*sq;
+            for(let i=0;i<3;i++){bg[i]+=c.bg[i]*sq; bl[i]+=c.blob[i]*sq;}
+            w+=sq;
         });
-        if (totalW < 1e-6) return;
-        curF = f / totalW; curK = k / totalW;
-        curDa = da / totalW; curDb = db / totalW;
-        tarColBg   = bg.map(v => v / totalW);
-        tarColBlob = blob.map(v => v / totalW);
-        document.getElementById('rd-params').textContent =
+        if(w<1e-6) return;
+        curF=f/w; curK=k/w; curDa=da/w; curDb=db/w;
+        tarBg=bg.map(v=>v/w); tarBlob=bl.map(v=>v/w);
+        document.getElementById('rd-params').textContent=
             `f = ${curF.toFixed(4)}    k = ${curK.toFixed(4)}`;
     }
 
     function pushHistory(emotions) {
-        const entry = {};
-        EMOTION_KEYS.forEach(k => entry[k] = 0);
-        emotions.forEach(e => { if (entry.hasOwnProperty(e.label)) entry[e.label] = e.score; });
+        const entry={};
+        EMOTION_KEYS.forEach(k=>entry[k]=0);
+        emotions.forEach(e=>{if(entry.hasOwnProperty(e.label))entry[e.label]=e.score;});
         emotionHistory.push(entry);
-        if (emotionHistory.length > HISTORY_SIZE) emotionHistory.shift();
-
-        const blended = {};
-        EMOTION_KEYS.forEach(k => blended[k] = 0);
-        let totalW = 0;
-        emotionHistory.forEach((ent, i) => {
-            const age = emotionHistory.length - 1 - i;
-            const w   = Math.pow(0.6, age);
-            EMOTION_KEYS.forEach(k => blended[k] += (ent[k] || 0) * w);
-            totalW += w;
+        if(emotionHistory.length>HISTORY_SIZE) emotionHistory.shift();
+        const blend={};
+        EMOTION_KEYS.forEach(k=>blend[k]=0);
+        let tw=0;
+        emotionHistory.forEach((ent,i)=>{
+            const w=Math.pow(0.6, emotionHistory.length-1-i);
+            EMOTION_KEYS.forEach(k=>blend[k]+=(ent[k]||0)*w);
+            tw+=w;
         });
-        EMOTION_KEYS.forEach(k => blended[k] /= totalW);
-        blendParams(blended);
+        EMOTION_KEYS.forEach(k=>blend[k]/=tw);
+        blendParams(blend);
     }
 
     function applyEmotions(emotions) {
-        const raw = {};
-        emotions.forEach(e => raw[e.label] = e.score);
-        const seedCount = Math.max(3, Math.round(
-            (raw.anger    || 0) * 15 +
-            (raw.surprise || 0) * 20 +
-            (raw.joy      || 0) * 12 +
-            (raw.fear     || 0) * 10 +
-            (raw.disgust  || 0) *  8 +
-            (raw.sadness  || 0) *  6
-        ));
-        addSeeds(seedCount, 6 + Math.round((raw.surprise || 0) * 10));
+        const raw={};
+        emotions.forEach(e=>raw[e.label]=e.score);
+        const n=Math.max(3,Math.round(
+            (raw.anger||0)*15+(raw.surprise||0)*20+(raw.joy||0)*12+
+            (raw.fear||0)*10+(raw.disgust||0)*8+(raw.sadness||0)*6));
+        addSeeds(n, 6+Math.round((raw.surprise||0)*10));
         pushHistory(emotions);
     }
 
-    // ─── Cached Uniform Locations ────────────────────────────────
-    const simLoc = {
-        tex:     gl.getUniformLocation(simProg, 'u_tex'),
-        texSize: gl.getUniformLocation(simProg, 'u_texSize'),
-        f:       gl.getUniformLocation(simProg, 'u_f'),
-        k:       gl.getUniformLocation(simProg, 'u_k'),
-        da:      gl.getUniformLocation(simProg, 'u_da'),
-        db:      gl.getUniformLocation(simProg, 'u_db'),
-    };
-    const renderLoc = {
-        tex:        gl.getUniformLocation(renderProg, 'u_tex'),
-        screenSize: gl.getUniformLocation(renderProg, 'u_screenSize'),
-        simPx:      gl.getUniformLocation(renderProg, 'u_simPx'),
-        colA:       gl.getUniformLocation(renderProg, 'u_colA'),
-        colB:       gl.getUniformLocation(renderProg, 'u_colB'),
-        time:       gl.getUniformLocation(renderProg, 'u_time'),
+    // Simulation step
+    const simL = {
+        prev:    gl.getUniformLocation(simProg, 'u_prev'),
+        simSize: gl.getUniformLocation(simProg, 'u_simSize'),
+        f:  gl.getUniformLocation(simProg, 'u_f'),
+        k:  gl.getUniformLocation(simProg, 'u_k'),
+        da: gl.getUniformLocation(simProg, 'u_da'),
+        db: gl.getUniformLocation(simProg, 'u_db'),
     };
 
-    // ─── Simulation Step ─────────────────────────────────────────
     function simStep() {
-        gl.useProgram(simProg);
-        bindQuad(simProg);
-        gl.viewport(0, 0, SIM_W, SIM_H);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fboPong);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, texPing);
-        gl.uniform1i(simLoc.tex, 0);
-        gl.uniform2f(simLoc.texSize, SIM_W, SIM_H);
-        gl.uniform1f(simLoc.f,  curF);
-        gl.uniform1f(simLoc.k,  curK);
-        gl.uniform1f(simLoc.da, curDa);
-        gl.uniform1f(simLoc.db, curDb);
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
-        let tmp;
-        tmp = texPing; texPing = texPong; texPong = tmp;
-        tmp = fboPing; fboPing = fboPong; fboPong = tmp;
+        drawToFBO(fboB, simProg, () => {
+            gl.bindTexture(gl.TEXTURE_2D, texA);
+            gl.uniform1i(simL.prev,    0);
+            gl.uniform2f(simL.simSize, SIM_W, SIM_H);
+            gl.uniform1f(simL.f,  curF);
+            gl.uniform1f(simL.k,  curK);
+            gl.uniform1f(simL.da, curDa);
+            gl.uniform1f(simL.db, curDb);
+        });
+        swap();
     }
 
-    // ─── Render to Screen ────────────────────────────────────────
-    let lastW = 0, lastH = 0;
+    // Render to screen
+    const rndrL = {
+        prev:       gl.getUniformLocation(rndrProg, 'u_prev'),
+        screenSize: gl.getUniformLocation(rndrProg, 'u_screenSize'),
+        simPx:      gl.getUniformLocation(rndrProg, 'u_simPx'),
+        colA:       gl.getUniformLocation(rndrProg, 'u_colA'),
+        colB:       gl.getUniformLocation(rndrProg, 'u_colB'),
+        time:       gl.getUniformLocation(rndrProg, 'u_time'),
+    };
 
-    function renderToScreen(time) {
-        const W = canvas.clientWidth  || canvas.offsetWidth  || 512;
-        const H = canvas.clientHeight || canvas.offsetHeight || 512;
-        if (W !== lastW || H !== lastH) {
-            canvas.width = W; canvas.height = H;
-            lastW = W; lastH = H;
-        }
+    function renderToScreen(ts) {
+        // Sync canvas size without breaking the GL context:
+        // only resize if dimensions actually changed.
+        syncCanvasSize();
+
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.viewport(0, 0, W, H);
-        gl.useProgram(renderProg);
-        bindQuad(renderProg);
-        curColBg   = curColBg.map((v, i)   => v * 0.97 + tarColBg[i]   * 0.03);
-        curColBlob = curColBlob.map((v, i) => v * 0.97 + tarColBlob[i] * 0.03);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+
+        curBg   = curBg.map((v,i)   => v*0.97 + tarBg[i]  *0.03);
+        curBlob = curBlob.map((v,i) => v*0.97 + tarBlob[i]*0.03);
+
+        gl.useProgram(rndrProg);
+        bindQuad();
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, texPing);
-        gl.uniform1i(renderLoc.tex, 0);
-        gl.uniform2f(renderLoc.screenSize, W, H);
-        gl.uniform2f(renderLoc.simPx, 1.0 / SIM_W, 1.0 / SIM_H);
-        gl.uniform3fv(renderLoc.colA, curColBg);
-        gl.uniform3fv(renderLoc.colB, curColBlob);
-        gl.uniform1f(renderLoc.time, time * 0.001);
+        gl.bindTexture(gl.TEXTURE_2D, texA);
+        gl.uniform1i(rndrL.prev,       0);
+        gl.uniform2f(rndrL.screenSize, canvas.width, canvas.height);
+        gl.uniform2f(rndrL.simPx,      1/SIM_W, 1/SIM_H);
+        gl.uniform3fv(rndrL.colA,      curBg);
+        gl.uniform3fv(rndrL.colB,      curBlob);
+        gl.uniform1f(rndrL.time,       ts * 0.001);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
 
-    // ─── Main Loop ───────────────────────────────────────────────
-    function loop(time) {
+    // Main loop
+    let frameCount = 0;
+    function loop(ts) {
         for (let i = 0; i < STEPS_PER_FRAME; i++) simStep();
-        renderToScreen(time);
+        renderToScreen(ts);
+        frameCount++;
+        if (frameCount === 1) console.log('[RD] First frame rendered — canvas', canvas.width, 'x', canvas.height);
+        if (frameCount === 30) console.log('[RD] 30 frames rendered OK');
         requestAnimationFrame(loop);
     }
     requestAnimationFrame(loop);
 
-    // ─── App Controller ──────────────────────────────────────────
-    const button     = document.getElementById('mic-toggle');
-    const textInput  = document.getElementById('text-input');
-    const textSubmit = document.getElementById('text-submit');
-    const saveButton = document.getElementById('save-output');
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    // App controller
+    const micBtn    = document.getElementById('mic-toggle');
+    const txtInput  = document.getElementById('text-input');
+    const txtSubmit = document.getElementById('text-submit');
+    const saveBtn   = document.getElementById('save-output');
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    let isListening         = false;
-    let recognition         = null;
-    let committedTranscript = '';
-    let liveTranscript      = '';
-    let shouldAnalyseOnStop = false;
-    let lastTranscriptText  = '';
-    let lastEmotions        = [];
+    let isListening=false, recognition=null;
+    let committed='', live='', analyseOnStop=false;
+    let lastTranscript='', lastEmotions=[];
 
-    function getAppSettings() {
-        return window.getEmotionArtSettings ? window.getEmotionArtSettings() : {
-            audio_default_mic: 'manual',
-            audio_transcript_persistence: 'keep',
-            model_classifier: 'base',
-        };
+    function settings() {
+        return window.getEmotionArtSettings ? window.getEmotionArtSettings()
+             : { audio_default_mic:'manual', audio_transcript_persistence:'keep', model_classifier:'base' };
+    }
+    function setTranscript(t) {
+        const el=document.getElementById('transcript');
+        if(el) el.textContent = t||'Waiting for speech or text...';
     }
 
-    function updateTranscript(text) {
-        const el = document.getElementById('transcript');
-        if (el) el.textContent = text || 'Waiting for speech or text...';
-    }
-
-    async function analyseText(text) {
+    async function analyse(text) {
         document.getElementById('recording-status').textContent = 'Analysing';
-        lastTranscriptText = text;
-        updateTranscript(text);
+        lastTranscript = text;
+        setTranscript(text);
         try {
-            const response = await fetch('/analyse', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, model: getAppSettings().model_classifier || 'base' }),
+            const r = await fetch('/analyse', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({text, model: settings().model_classifier||'base'}),
             });
-            const payload = await response.json();
-            if (!response.ok) throw new Error(payload.error || payload.details || 'Analyse request failed');
-
-            lastEmotions = payload.emotions;
-            applyEmotions(payload.emotions);
-
+            const p = await r.json();
+            if (!r.ok) throw new Error(p.error||p.details||'Analyse failed');
+            lastEmotions = p.emotions;
+            applyEmotions(p.emotions);
             document.getElementById('classification-output').innerHTML =
-                payload.emotions.slice(0, 5).map(e => `
+                p.emotions.slice(0,5).map(e=>`
                     <div class="score-row">
                         <span class="score-label">${e.label.toUpperCase()}</span>
-                        <span class="score-value">${Math.round(e.score * 100)}%</span>
-                    </div>
-                `).join('');
-
-            document.getElementById('recording-status').textContent = isListening ? 'Listening' : 'Ready';
-            if (saveButton) saveButton.disabled = false;
-            if (getAppSettings().audio_transcript_persistence === 'clear') updateTranscript('');
-        } catch (err) {
+                        <span class="score-value">${Math.round(e.score*100)}%</span>
+                    </div>`).join('');
+            document.getElementById('recording-status').textContent = isListening?'Listening':'Ready';
+            if(saveBtn) saveBtn.disabled = false;
+            if(settings().audio_transcript_persistence==='clear') setTranscript('');
+        } catch(err) {
             console.error(err);
-            document.getElementById('classification-output').textContent = err.message || 'Analysis failed.';
+            document.getElementById('classification-output').textContent = err.message||'Analysis failed.';
             document.getElementById('recording-status').textContent = 'Model error';
         }
     }
 
     async function submitText() {
-        const text = textInput.value.trim();
-        if (!text) return;
-        textInput.value = '';
-        await analyseText(text);
+        const t = txtInput.value.trim();
+        if (!t) return;
+        txtInput.value = '';
+        await analyse(t);
     }
+    txtSubmit.addEventListener('click', submitText);
+    txtInput.addEventListener('keydown', e => { if(e.key==='Enter') submitText(); });
 
-    textSubmit.addEventListener('click', submitText);
-    textInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitText(); });
-
-    if (SpeechRecognition) {
-        recognition = new SpeechRecognition();
+    if (SR) {
+        recognition = new SR();
         recognition.continuous = true;
         recognition.interimResults = true;
 
-        recognition.addEventListener('result', event => {
-            const finalChunks = [], interimChunks = [];
-            for (let i = 0; i < event.results.length; i++) {
-                const result = event.results[i];
-                const text   = result[0].transcript.trim();
-                if (!text) continue;
-                result.isFinal ? finalChunks.push(text) : interimChunks.push(text);
+        recognition.addEventListener('result', ev => {
+            const fin=[], interim=[];
+            for(let i=0;i<ev.results.length;i++){
+                const r=ev.results[i], t=r[0].transcript.trim();
+                if(!t) continue;
+                r.isFinal ? fin.push(t) : interim.push(t);
             }
-            committedTranscript = finalChunks.join(' ').trim();
-            liveTranscript = `${committedTranscript} ${interimChunks.join(' ').trim()}`.trim();
-            updateTranscript(liveTranscript);
+            committed = fin.join(' ').trim();
+            live = `${committed} ${interim.join(' ').trim()}`.trim();
+            setTranscript(live);
         });
 
         recognition.addEventListener('end', () => {
             if (isListening) { recognition.start(); return; }
-            if (shouldAnalyseOnStop) {
-                shouldAnalyseOnStop = false;
-                const finalTranscript = (liveTranscript || committedTranscript).trim();
-                committedTranscript = ''; liveTranscript = '';
-                updateTranscript(finalTranscript);
-                if (finalTranscript) analyseText(finalTranscript);
-                else document.getElementById('recording-status').textContent = 'Ready';
+            if (analyseOnStop) {
+                analyseOnStop = false;
+                const final = (live||committed).trim();
+                committed=''; live='';
+                setTranscript(final);
+                if (final) analyse(final);
+                else document.getElementById('recording-status').textContent='Ready';
             }
         });
 
-        recognition.addEventListener('error', event => {
-            if (event.error !== 'no-speech') {
-                isListening = false;
-                button.textContent = 'START LISTENING';
-                button.classList.remove('secondary');
-                button.classList.add('passive');
-                document.getElementById('recording-status').textContent = 'Mic error';
+        recognition.addEventListener('error', ev => {
+            if (ev.error!=='no-speech') {
+                isListening=false;
+                micBtn.textContent='START LISTENING';
+                micBtn.classList.replace('secondary','passive');
+                document.getElementById('recording-status').textContent='Mic error';
             }
         });
 
-        button.addEventListener('click', () => {
+        micBtn.addEventListener('click', () => {
             if (isListening) {
-                isListening = false;
-                shouldAnalyseOnStop = true;
+                isListening=false; analyseOnStop=true;
                 recognition.stop();
-                button.textContent = 'START LISTENING';
-                button.classList.remove('secondary');
-                button.classList.add('passive');
-                document.getElementById('recording-status').textContent = 'Analysing';
+                micBtn.textContent='START LISTENING';
+                micBtn.classList.replace('secondary','passive');
+                document.getElementById('recording-status').textContent='Analysing';
             } else {
-                committedTranscript = ''; liveTranscript = '';
-                shouldAnalyseOnStop = false;
-                isListening = true;
-                updateTranscript('');
-                button.textContent = 'END LISTENING';
-                button.classList.remove('passive');
-                button.classList.add('secondary');
-                document.getElementById('recording-status').textContent = 'Listening';
+                committed=''; live=''; analyseOnStop=false;
+                isListening=true;
+                setTranscript('');
+                micBtn.textContent='END LISTENING';
+                micBtn.classList.replace('passive','secondary');
+                document.getElementById('recording-status').textContent='Listening';
                 recognition.start();
             }
         });
 
-        button.textContent = 'START LISTENING';
-        button.classList.add('passive');
-        document.getElementById('recording-status').textContent = 'Ready';
-        if (getAppSettings().audio_default_mic === 'auto') button.click();
+        micBtn.textContent='START LISTENING';
+        micBtn.classList.add('passive');
+        document.getElementById('recording-status').textContent='Ready';
+        if (settings().audio_default_mic==='auto') micBtn.click();
     } else {
-        button.textContent = 'NO MIC API';
-        button.disabled = true;
-        button.classList.add('passive');
-        document.getElementById('recording-status').textContent = 'Mic unavailable';
+        micBtn.textContent='NO MIC API';
+        micBtn.disabled=true;
+        micBtn.classList.add('passive');
+        document.getElementById('recording-status').textContent='Mic unavailable';
     }
 
-    // ─── Gallery Save ────────────────────────────────────────────
+    // Gallery save
     if (window.saveArtwork) {
         window.saveArtwork({
             pageName:     'bubbles',
             captureImage: () => canvas.toDataURL('image/png'),
             getEmotions:  () => lastEmotions,
-            getTranscript: () => lastTranscriptText,
+            getTranscript: () => lastTranscript,
         });
     }
+
+    // Handle window resize
+    window.addEventListener('resize', syncCanvasSize);
     </script>
 </body>
 </html>

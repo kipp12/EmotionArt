@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EmotionArt | Bubbles</title>
+    <title>EmotionArt | Reaction-Diffusion</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/base.css') }}">
 </head>
 <body>
@@ -17,19 +17,16 @@
         <main class="app-main">
             <header class="page-header">
                 <div>
-                    <h2 class="page-title">Bubbles</h2>
+                    <h2 class="page-title">Reaction-Diffusion</h2>
                     <p class="page-credit">Crafted by Matteo Goldsmith</p>
                 </div>
             </header>
 
             <section class="page-content stage-layout">
-                <div class="visual-stage bubbles-stage-frame">
-                    <iframe
-                        id="bubbles-stage-frame"
-                        class="visual-embed"
-                        src="/bubbles-original?embed=1"
-                        title="Bubbles visual stage"
-                    ></iframe>
+                <div class="visual-stage" style="position:relative;overflow:hidden;">
+                    <canvas id="rdCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;display:block;"></canvas>
+                    <div id="rd-info" style="position:absolute;top:12px;left:14px;font-family:monospace;font-size:9px;opacity:0.35;text-transform:uppercase;letter-spacing:2px;pointer-events:none;color:#fff;">Gray–Scott Reaction-Diffusion</div>
+                    <div id="rd-params" style="position:absolute;bottom:12px;right:14px;font-family:monospace;font-size:9px;opacity:0.3;text-align:right;pointer-events:none;line-height:1.8;color:#fff;">f = —&nbsp;&nbsp;k = —</div>
                 </div>
 
                 <div class="overlay-panel">
@@ -64,214 +61,567 @@
         </main>
     </div>
 
+<!-- ─── Vertex Shader ──────────────────────────────────────────── -->
+<script id="vs" type="x-shader/x-vertex">
+attribute vec2 a_pos;
+void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+</script>
+
+<!-- ─── Gray-Scott Simulation Step ───────────────────────────── -->
+<script id="sim-fs" type="x-shader/x-fragment">
+precision highp float;
+
+uniform sampler2D u_tex;
+uniform vec2      u_texSize;
+uniform float     u_f;
+uniform float     u_k;
+uniform float     u_da;
+uniform float     u_db;
+
+void main() {
+    vec2 uv = gl_FragCoord.xy / u_texSize;
+    vec2 px = 1.0 / u_texSize;
+
+    // 9-point weighted Laplacian stencil
+    vec2 c  = texture2D(u_tex, uv).rg;
+    vec2 n  = texture2D(u_tex, uv + vec2( 0.0,  px.y)).rg;
+    vec2 s  = texture2D(u_tex, uv + vec2( 0.0, -px.y)).rg;
+    vec2 e  = texture2D(u_tex, uv + vec2( px.x,  0.0)).rg;
+    vec2 w  = texture2D(u_tex, uv + vec2(-px.x,  0.0)).rg;
+    vec2 ne = texture2D(u_tex, uv + vec2( px.x,  px.y)).rg;
+    vec2 nw = texture2D(u_tex, uv + vec2(-px.x,  px.y)).rg;
+    vec2 se = texture2D(u_tex, uv + vec2( px.x, -px.y)).rg;
+    vec2 sw = texture2D(u_tex, uv + vec2(-px.x, -px.y)).rg;
+
+    vec2 lap = (n + s + e + w) * 0.2
+             + (ne + nw + se + sw) * 0.05
+             - c;
+
+    float a   = c.r;
+    float b   = c.g;
+    float abb = a * b * b;
+
+    float na = clamp(a + (u_da * lap.r - abb + u_f * (1.0 - a)), 0.0, 1.0);
+    float nb = clamp(b + (u_db * lap.g + abb - (u_f + u_k) * b), 0.0, 1.0);
+
+    gl_FragColor = vec4(na, nb, 0.0, 1.0);
+}
+</script>
+
+<!-- ─── Render / Colourize ────────────────────────────────────── -->
+<script id="render-fs" type="x-shader/x-fragment">
+precision highp float;
+
+uniform sampler2D u_tex;
+uniform vec2      u_screenSize;
+uniform vec2      u_simPx;
+uniform vec3      u_colA;
+uniform vec3      u_colB;
+uniform float     u_time;
+
+void main() {
+    vec2 uv = gl_FragCoord.xy / u_screenSize;
+
+    float b  = texture2D(u_tex, uv).g;
+
+    // Neighbours at simulation-texel resolution for edge detection & normals
+    float bR = texture2D(u_tex, uv + vec2( u_simPx.x,  0.0      )).g;
+    float bL = texture2D(u_tex, uv + vec2(-u_simPx.x,  0.0      )).g;
+    float bU = texture2D(u_tex, uv + vec2( 0.0,         u_simPx.y)).g;
+    float bD = texture2D(u_tex, uv + vec2( 0.0,        -u_simPx.y)).g;
+
+    vec2  grad = vec2(bR - bL, bU - bD);
+    float edge = length(grad);
+
+    // Fake 3-D surface normal from B-field gradient → goo shading
+    vec3 normal = normalize(vec3(-grad * 6.0, 0.5));
+
+    // Slowly rotating directional light
+    vec3 lightDir = normalize(vec3(cos(u_time * 0.25), sin(u_time * 0.25), 1.2));
+    float diff    = max(dot(normal, lightDir), 0.0);
+    float spec    = pow(max(dot(reflect(-lightDir, normal), vec3(0.0, 0.0, 1.0)), 0.0), 24.0);
+
+    // Colour ramp: dark background → full blob colour
+    float t   = smoothstep(0.08, 0.45, b);
+    vec3  col = mix(u_colA * 0.08, u_colB, t);
+
+    // Lighting
+    col *= 0.25 + diff * 0.75;
+    col += vec3(spec * 0.55);
+
+    // Edge glow + inner core
+    col += u_colB * edge * 1.4;
+    col += u_colB * smoothstep(0.42, 0.65, b) * 0.25;
+
+    // Vignette
+    vec2 vUV = uv * 2.0 - 1.0;
+    col *= 1.0 - dot(vUV, vUV) * 0.28;
+
+    // Filmic tone mapping + gamma
+    col = 1.0 - exp(-col * 2.2);
+    gl_FragColor = vec4(pow(col, vec3(0.85)), 1.0);
+}
+</script>
+
     <script src="{{ url_for('static', filename='javascript/gallery-save.js') }}"></script>
     <script>
-        const stageFrame = document.getElementById('bubbles-stage-frame');
-        const saveButton = document.getElementById('save-output');
+    // ─── Constants ──────────────────────────────────────────────
+    const SIM_W           = 512;
+    const SIM_H           = 512;
+    const STEPS_PER_FRAME = 10;
+    const HISTORY_SIZE    = 8;
 
-        let lastEmotions = [];
-        let lastTranscriptText = '';
-        let isListening = false;
-        let recognition = null;
-        let committedTranscript = '';
-        let liveTranscript = '';
-        let shouldAnalyseOnStop = false;
+    // Each emotion maps to a distinct named region in the Gray-Scott phase diagram
+    const EMOTION_PARAMS = {
+        anger:    { f: 0.078, k: 0.061, da: 0.2097, db: 0.105 }, // chaotic worms
+        joy:      { f: 0.035, k: 0.060, da: 0.2097, db: 0.105 }, // mitosis / expanding spots
+        sadness:  { f: 0.014, k: 0.054, da: 0.2097, db: 0.105 }, // slow drifting spots
+        fear:     { f: 0.041, k: 0.060, da: 0.2097, db: 0.105 }, // labyrinthine
+        surprise: { f: 0.062, k: 0.061, da: 0.2097, db: 0.105 }, // U-skate spirals
+        disgust:  { f: 0.039, k: 0.058, da: 0.2097, db: 0.105 }, // large blobs
+        neutral:  { f: 0.037, k: 0.065, da: 0.2097, db: 0.105 }, // stable dots
+    };
 
-        function getAppSettings() {
-            return window.getEmotionArtSettings ? window.getEmotionArtSettings() : {
-                audio_default_mic: 'manual',
-                audio_transcript_persistence: 'keep',
-                model_classifier: 'base',
-            };
+    const EMOTION_COLORS = {
+        anger:    { bg: [0.05, 0.00, 0.00], blob: [1.00, 0.05, 0.00] },
+        joy:      { bg: [0.05, 0.04, 0.00], blob: [1.00, 0.85, 0.00] },
+        sadness:  { bg: [0.00, 0.00, 0.05], blob: [0.00, 0.35, 1.00] },
+        fear:     { bg: [0.02, 0.00, 0.05], blob: [0.55, 0.00, 1.00] },
+        surprise: { bg: [0.00, 0.04, 0.05], blob: [0.80, 1.00, 1.00] },
+        disgust:  { bg: [0.00, 0.04, 0.00], blob: [0.10, 0.90, 0.10] },
+        neutral:  { bg: [0.00, 0.02, 0.03], blob: [0.25, 0.55, 0.70] },
+    };
+
+    const EMOTION_KEYS = ['anger', 'disgust', 'fear', 'joy', 'neutral', 'sadness', 'surprise'];
+
+    // ─── WebGL2 Setup ────────────────────────────────────────────
+    const canvas = document.getElementById('rdCanvas');
+    // preserveDrawingBuffer required for canvas.toDataURL (gallery save)
+    const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true });
+
+    if (!gl) {
+        document.getElementById('recording-status').textContent = 'WebGL2 unavailable';
+        throw new Error('WebGL2 not supported');
+    }
+    gl.getExtension('EXT_color_buffer_float');
+
+    // ─── Shader Helpers ──────────────────────────────────────────
+    function compileShader(type, src) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, src);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+            console.error('Shader error:', gl.getShaderInfoLog(s));
+        return s;
+    }
+
+    function makeProgram(vsSrc, fsSrc) {
+        const p = gl.createProgram();
+        gl.attachShader(p, compileShader(gl.VERTEX_SHADER,   vsSrc));
+        gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fsSrc));
+        gl.linkProgram(p);
+        if (!gl.getProgramParameter(p, gl.LINK_STATUS))
+            console.error('Program link error:', gl.getProgramInfoLog(p));
+        return p;
+    }
+
+    const vsSrc      = document.getElementById('vs').text;
+    const simProg    = makeProgram(vsSrc, document.getElementById('sim-fs').text);
+    const renderProg = makeProgram(vsSrc, document.getElementById('render-fs').text);
+
+    const quadBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,
+        new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]),
+        gl.STATIC_DRAW);
+
+    function bindQuad(prog) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+        const loc = gl.getAttribLocation(prog, 'a_pos');
+        gl.enableVertexAttribArray(loc);
+        gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    }
+
+    // ─── Ping-Pong Framebuffers ──────────────────────────────────
+    function makeFloatTexture(data) {
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        // RGBA32F — full 32-bit float precision, required for G-S stability
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, SIM_W, SIM_H, 0, gl.RGBA, gl.FLOAT, data);
+        return tex;
+    }
+
+    function makeFBO(tex) {
+        const fbo = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        return fbo;
+    }
+
+    function buildInitData() {
+        const d = new Float32Array(SIM_W * SIM_H * 4);
+        for (let i = 0; i < SIM_W * SIM_H; i++) {
+            d[i * 4]     = 1.0; // A = 1
+            d[i * 4 + 1] = 0.0; // B = 0
+            d[i * 4 + 3] = 1.0;
         }
+        return d;
+    }
 
-        function getStageApi() {
-            try {
-                return stageFrame?.contentWindow?.BubblesStage || null;
-            } catch {
-                return null;
-            }
-        }
+    let texPing = makeFloatTexture(buildInitData());
+    let texPong = makeFloatTexture(buildInitData());
+    let fboPing = makeFBO(texPing);
+    let fboPong = makeFBO(texPong);
 
-        function updateTranscript(text) {
-            const transcript = document.getElementById('transcript');
-            if (!transcript) return;
-            transcript.textContent = text || 'Waiting for speech or text...';
-        }
+    // ─── Seed Injection ──────────────────────────────────────────
+    function addSeeds(count, radius) {
+        radius = Math.max(3, Math.round(radius));
+        const dia   = radius * 2 + 1;
+        const patch = new Float32Array(dia * dia * 4);
 
-        function renderEmotionScores(emotions) {
-            const output = document.getElementById('classification-output');
-            if (!output) return;
-            output.innerHTML = emotions.slice(0, 5).map(emotion => `
-                <div class="score-row">
-                    <span class="score-label">${emotion.label.toUpperCase()}</span>
-                    <span class="score-value">${Math.round(emotion.score * 100)}%</span>
-                </div>
-            `).join('');
-        }
-
-        async function analyseText(text) {
-            document.getElementById('recording-status').textContent = 'Analysing';
-            lastTranscriptText = text;
-            updateTranscript(text);
-
-            try {
-                const response = await fetch('/analyse', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        text,
-                        model: getAppSettings().model_classifier || 'base',
-                    }),
-                });
-
-                const payload = await response.json();
-                if (!response.ok) {
-                    throw new Error(payload.error || payload.details || 'Analyse request failed');
-                }
-
-                lastEmotions = payload.emotions;
-                renderEmotionScores(payload.emotions);
-                getStageApi()?.applyEmotions(payload.emotions);
-
-                document.getElementById('recording-status').textContent = isListening ? 'Listening' : 'Ready';
-                if (saveButton) saveButton.disabled = false;
-
-                if (getAppSettings().audio_transcript_persistence === 'clear') {
-                    updateTranscript('');
-                }
-            } catch (error) {
-                console.error(error);
-                document.getElementById('classification-output').textContent = error.message || 'Analysis failed.';
-                document.getElementById('recording-status').textContent = 'Model error';
-            }
-        }
-
-        const button = document.getElementById('mic-toggle');
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-        if (SpeechRecognition) {
-            recognition = new SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-
-            recognition.addEventListener('result', event => {
-                const finalChunks = [];
-                const interimChunks = [];
-
-                for (let index = 0; index < event.results.length; index += 1) {
-                    const result = event.results[index];
-                    const text = result[0].transcript.trim();
-                    if (!text) continue;
-
-                    if (result.isFinal) {
-                        finalChunks.push(text);
-                    } else {
-                        interimChunks.push(text);
-                    }
-                }
-
-                committedTranscript = finalChunks.join(' ').trim();
-                liveTranscript = `${committedTranscript} ${interimChunks.join(' ').trim()}`.trim();
-                updateTranscript(liveTranscript);
-            });
-
-            recognition.addEventListener('end', () => {
-                if (isListening) {
-                    recognition.start();
-                    return;
-                }
-
-                if (shouldAnalyseOnStop) {
-                    shouldAnalyseOnStop = false;
-                    const finalTranscript = (liveTranscript || committedTranscript).trim();
-                    committedTranscript = '';
-                    liveTranscript = '';
-                    updateTranscript(finalTranscript);
-
-                    if (finalTranscript) {
-                        analyseText(finalTranscript);
-                    } else {
-                        document.getElementById('recording-status').textContent = 'Ready';
-                    }
-                }
-            });
-
-            recognition.addEventListener('error', event => {
-                if (event.error !== 'no-speech') {
-                    isListening = false;
-                    button.textContent = 'START LISTENING';
-                    button.classList.remove('secondary');
-                    button.classList.add('passive');
-                    document.getElementById('recording-status').textContent = 'Mic error';
-                }
-            });
-
-            button.addEventListener('click', () => {
-                if (isListening) {
-                    isListening = false;
-                    shouldAnalyseOnStop = true;
-                    recognition.stop();
-                    button.textContent = 'START LISTENING';
-                    button.classList.remove('secondary');
-                    button.classList.add('passive');
-                    document.getElementById('recording-status').textContent = 'Analysing';
+        for (let py = 0; py < dia; py++) {
+            for (let px = 0; px < dia; px++) {
+                const dx  = px - radius;
+                const dy  = py - radius;
+                const idx = (py * dia + px) * 4;
+                if (Math.sqrt(dx * dx + dy * dy) <= radius) {
+                    patch[idx]     = 0.50;
+                    patch[idx + 1] = 0.25;
                 } else {
-                    committedTranscript = '';
-                    liveTranscript = '';
-                    shouldAnalyseOnStop = false;
-                    isListening = true;
-                    updateTranscript('');
-                    button.textContent = 'END LISTENING';
-                    button.classList.remove('passive');
-                    button.classList.add('secondary');
-                    document.getElementById('recording-status').textContent = 'Listening';
-                    recognition.start();
+                    patch[idx]     = 1.0;
+                    patch[idx + 1] = 0.0;
                 }
-            });
-
-            button.textContent = 'START LISTENING';
-            button.classList.add('passive');
-            document.getElementById('recording-status').textContent = 'Ready';
-            if (getAppSettings().audio_default_mic === 'auto') {
-                button.click();
+                patch[idx + 3] = 1.0;
             }
-        } else {
-            button.textContent = 'NO MIC API';
-            button.disabled = true;
-            button.classList.add('passive');
-            document.getElementById('recording-status').textContent = 'Mic unavailable';
         }
 
-        const textInput = document.getElementById('text-input');
-        const textSubmit = document.getElementById('text-submit');
-
-        async function submitText() {
-            const text = textInput.value.trim();
-            if (!text) return;
-            textInput.value = '';
-            await analyseText(text);
+        gl.bindTexture(gl.TEXTURE_2D, texPing);
+        for (let n = 0; n < count; n++) {
+            const x = Math.floor(Math.random() * (SIM_W - dia));
+            const y = Math.floor(Math.random() * (SIM_H - dia));
+            gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, dia, dia, gl.RGBA, gl.FLOAT, patch);
         }
+    }
 
-        textSubmit.addEventListener('click', submitText);
-        textInput.addEventListener('keydown', event => {
-            if (event.key === 'Enter') submitText();
+    addSeeds(25, 8); // initial seeds so patterns are visible immediately
+
+    // ─── Emotion / Parameter State ───────────────────────────────
+    const emotionHistory = [];
+    let curF = 0.037, curK = 0.065, curDa = 0.2097, curDb = 0.105;
+    let curColBg   = [0.0, 0.02, 0.03];
+    let curColBlob = [0.25, 0.55, 0.7];
+    let tarColBg   = [...curColBg];
+    let tarColBlob = [...curColBlob];
+
+    function blendParams(emotions) {
+        let totalW = 0, f = 0, k = 0, da = 0, db = 0;
+        const bg = [0, 0, 0], blob = [0, 0, 0];
+
+        EMOTION_KEYS.forEach(em => {
+            const score = emotions[em] || 0;
+            const p = EMOTION_PARAMS[em];
+            const c = EMOTION_COLORS[em];
+            const w = score * score; // squared so dominant emotion wins
+            f += p.f * w; k += p.k * w;
+            da += p.da * w; db += p.db * w;
+            for (let i = 0; i < 3; i++) {
+                bg[i]   += c.bg[i]   * w;
+                blob[i] += c.blob[i] * w;
+            }
+            totalW += w;
         });
 
-        if (window.saveArtwork) {
-            window.saveArtwork({
-                pageName: 'bubbles',
-                captureImage: () => {
-                    const stageApi = getStageApi();
-                    if (!stageApi || typeof stageApi.captureImage !== 'function') {
-                        throw new Error('Bubbles stage is still loading.');
-                    }
-                    return stageApi.captureImage();
-                },
-                getEmotions: () => lastEmotions,
-                getTranscript: () => lastTranscriptText,
-            });
+        if (totalW < 1e-6) return;
+        curF = f / totalW; curK = k / totalW;
+        curDa = da / totalW; curDb = db / totalW;
+        tarColBg   = bg.map(v => v / totalW);
+        tarColBlob = blob.map(v => v / totalW);
+
+        document.getElementById('rd-params').textContent =
+            `f = ${curF.toFixed(4)}    k = ${curK.toFixed(4)}`;
+    }
+
+    function pushHistory(emotions) {
+        const entry = {};
+        EMOTION_KEYS.forEach(k => entry[k] = 0);
+        emotions.forEach(e => { if (entry.hasOwnProperty(e.label)) entry[e.label] = e.score; });
+        emotionHistory.push(entry);
+        if (emotionHistory.length > HISTORY_SIZE) emotionHistory.shift();
+
+        const blended = {};
+        EMOTION_KEYS.forEach(k => blended[k] = 0);
+        let totalW = 0;
+        emotionHistory.forEach((ent, i) => {
+            const age = emotionHistory.length - 1 - i;
+            const w   = Math.pow(0.6, age);
+            EMOTION_KEYS.forEach(k => blended[k] += (ent[k] || 0) * w);
+            totalW += w;
+        });
+        EMOTION_KEYS.forEach(k => blended[k] /= totalW);
+        blendParams(blended);
+    }
+
+    // Called by analyseText with the raw emotions array from /analyse
+    function applyEmotions(emotions) {
+        const raw = {};
+        emotions.forEach(e => raw[e.label] = e.score);
+
+        // Inject seeds — high-arousal emotions trigger more reaction sites
+        const seedCount = Math.max(3, Math.round(
+            (raw.anger    || 0) * 15 +
+            (raw.surprise || 0) * 20 +
+            (raw.joy      || 0) * 12 +
+            (raw.fear     || 0) * 10 +
+            (raw.disgust  || 0) *  8 +
+            (raw.sadness  || 0) *  6
+        ));
+        addSeeds(seedCount, 6 + Math.round((raw.surprise || 0) * 10));
+        pushHistory(emotions);
+    }
+
+    // ─── Cache Uniform Locations ─────────────────────────────────
+    const simLoc = {
+        tex: gl.getUniformLocation(simProg, 'u_tex'),
+        texSize: gl.getUniformLocation(simProg, 'u_texSize'),
+        f: gl.getUniformLocation(simProg, 'u_f'),
+        k: gl.getUniformLocation(simProg, 'u_k'),
+        da: gl.getUniformLocation(simProg, 'u_da'),
+        db: gl.getUniformLocation(simProg, 'u_db'),
+    };
+    const renderLoc = {
+        tex: gl.getUniformLocation(renderProg, 'u_tex'),
+        screenSize: gl.getUniformLocation(renderProg, 'u_screenSize'),
+        simPx: gl.getUniformLocation(renderProg, 'u_simPx'),
+        colA: gl.getUniformLocation(renderProg, 'u_colA'),
+        colB: gl.getUniformLocation(renderProg, 'u_colB'),
+        time: gl.getUniformLocation(renderProg, 'u_time'),
+    };
+
+    // ─── Simulation Step ─────────────────────────────────────────
+    function simStep() {
+        gl.useProgram(simProg);
+        bindQuad(simProg);
+        gl.viewport(0, 0, SIM_W, SIM_H);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fboPong);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, texPing);
+        gl.uniform1i(simLoc.tex, 0);
+        gl.uniform2f(simLoc.texSize, SIM_W, SIM_H);
+        gl.uniform1f(simLoc.f,  curF);
+        gl.uniform1f(simLoc.k,  curK);
+        gl.uniform1f(simLoc.da, curDa);
+        gl.uniform1f(simLoc.db, curDb);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+        let tmp;
+        tmp = texPing; texPing = texPong; texPong = tmp;
+        tmp = fboPing; fboPing = fboPong; fboPong = tmp;
+    }
+
+    // ─── Render to Screen ────────────────────────────────────────
+    let lastW = 0, lastH = 0;
+
+    function renderToScreen(time) {
+        const stage = canvas.parentElement;
+        const W = stage ? stage.clientWidth  : window.innerWidth;
+        const H = stage ? stage.clientHeight : window.innerHeight;
+        if (W !== lastW || H !== lastH) {
+            canvas.width = W; canvas.height = H;
+            lastW = W; lastH = H;
         }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, W, H);
+        gl.useProgram(renderProg);
+        bindQuad(renderProg);
+        curColBg   = curColBg.map((v, i)   => v * 0.97 + tarColBg[i]   * 0.03);
+        curColBlob = curColBlob.map((v, i) => v * 0.97 + tarColBlob[i] * 0.03);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, texPing);
+        gl.uniform1i(renderLoc.tex, 0);
+        gl.uniform2f(renderLoc.screenSize, W, H);
+        gl.uniform2f(renderLoc.simPx, 1.0 / SIM_W, 1.0 / SIM_H);
+        gl.uniform3fv(renderLoc.colA, curColBg);
+        gl.uniform3fv(renderLoc.colB, curColBlob);
+        gl.uniform1f(renderLoc.time, time * 0.001);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+    // ─── Main Loop ───────────────────────────────────────────────
+    function loop(time) {
+        for (let i = 0; i < STEPS_PER_FRAME; i++) simStep();
+        renderToScreen(time);
+        requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    // ─── App Controller (mic, text, analyse, save) ───────────────
+    const button     = document.getElementById('mic-toggle');
+    const textInput  = document.getElementById('text-input');
+    const textSubmit = document.getElementById('text-submit');
+    const saveButton = document.getElementById('save-output');
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    let isListening        = false;
+    let recognition        = null;
+    let committedTranscript = '';
+    let liveTranscript     = '';
+    let shouldAnalyseOnStop = false;
+    let lastTranscriptText = '';
+    let lastEmotions       = [];
+
+    function getAppSettings() {
+        return window.getEmotionArtSettings ? window.getEmotionArtSettings() : {
+            audio_default_mic: 'manual',
+            audio_transcript_persistence: 'keep',
+            model_classifier: 'base',
+        };
+    }
+
+    function updateTranscript(text) {
+        const el = document.getElementById('transcript');
+        if (el) el.textContent = text || 'Waiting for speech or text...';
+    }
+
+    async function analyseText(text) {
+        document.getElementById('recording-status').textContent = 'Analysing';
+        lastTranscriptText = text;
+        updateTranscript(text);
+
+        try {
+            const response = await fetch('/analyse', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text,
+                    model: getAppSettings().model_classifier || 'base',
+                }),
+            });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.error || payload.details || 'Analyse request failed');
+
+            lastEmotions = payload.emotions;
+            applyEmotions(payload.emotions);
+
+            document.getElementById('classification-output').innerHTML =
+                payload.emotions.slice(0, 5).map(e => `
+                    <div class="score-row">
+                        <span class="score-label">${e.label.toUpperCase()}</span>
+                        <span class="score-value">${Math.round(e.score * 100)}%</span>
+                    </div>
+                `).join('');
+
+            document.getElementById('recording-status').textContent = isListening ? 'Listening' : 'Ready';
+            if (saveButton) saveButton.disabled = false;
+
+            if (getAppSettings().audio_transcript_persistence === 'clear') updateTranscript('');
+        } catch (err) {
+            console.error(err);
+            document.getElementById('classification-output').textContent = err.message || 'Analysis failed.';
+            document.getElementById('recording-status').textContent = 'Model error';
+        }
+    }
+
+    async function submitText() {
+        const text = textInput.value.trim();
+        if (!text) return;
+        textInput.value = '';
+        await analyseText(text);
+    }
+
+    textSubmit.addEventListener('click', submitText);
+    textInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitText(); });
+
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.addEventListener('result', event => {
+            const finalChunks = [], interimChunks = [];
+            for (let i = 0; i < event.results.length; i++) {
+                const result = event.results[i];
+                const text   = result[0].transcript.trim();
+                if (!text) continue;
+                result.isFinal ? finalChunks.push(text) : interimChunks.push(text);
+            }
+            committedTranscript = finalChunks.join(' ').trim();
+            liveTranscript = `${committedTranscript} ${interimChunks.join(' ').trim()}`.trim();
+            updateTranscript(liveTranscript);
+        });
+
+        recognition.addEventListener('end', () => {
+            if (isListening) { recognition.start(); return; }
+            if (shouldAnalyseOnStop) {
+                shouldAnalyseOnStop = false;
+                const finalTranscript = (liveTranscript || committedTranscript).trim();
+                committedTranscript = '';
+                liveTranscript = '';
+                updateTranscript(finalTranscript);
+                if (finalTranscript) {
+                    analyseText(finalTranscript);
+                } else {
+                    document.getElementById('recording-status').textContent = 'Ready';
+                }
+            }
+        });
+
+        recognition.addEventListener('error', event => {
+            if (event.error !== 'no-speech') {
+                isListening = false;
+                button.textContent = 'START LISTENING';
+                button.classList.remove('secondary');
+                button.classList.add('passive');
+                document.getElementById('recording-status').textContent = 'Mic error';
+            }
+        });
+
+        button.addEventListener('click', () => {
+            if (isListening) {
+                isListening = false;
+                shouldAnalyseOnStop = true;
+                recognition.stop();
+                button.textContent = 'START LISTENING';
+                button.classList.remove('secondary');
+                button.classList.add('passive');
+                document.getElementById('recording-status').textContent = 'Analysing';
+            } else {
+                committedTranscript = '';
+                liveTranscript = '';
+                shouldAnalyseOnStop = false;
+                isListening = true;
+                updateTranscript('');
+                button.textContent = 'END LISTENING';
+                button.classList.remove('passive');
+                button.classList.add('secondary');
+                document.getElementById('recording-status').textContent = 'Listening';
+                recognition.start();
+            }
+        });
+
+        button.textContent = 'START LISTENING';
+        button.classList.add('passive');
+        document.getElementById('recording-status').textContent = 'Ready';
+        if (getAppSettings().audio_default_mic === 'auto') button.click();
+    } else {
+        button.textContent = 'NO MIC API';
+        button.disabled = true;
+        button.classList.add('passive');
+        document.getElementById('recording-status').textContent = 'Mic unavailable';
+    }
+
+    // ─── Gallery Save ────────────────────────────────────────────
+    if (window.saveArtwork) {
+        window.saveArtwork({
+            pageName: 'bubbles',
+            captureImage: () => canvas.toDataURL('image/png'),
+            getEmotions:  () => lastEmotions,
+            getTranscript: () => lastTranscriptText,
+        });
+    }
     </script>
 </body>
 </html>

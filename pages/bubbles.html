@@ -23,8 +23,8 @@
             </header>
 
             <section class="page-content stage-layout">
-                <div class="visual-stage" style="position:relative;overflow:hidden;">
-                    <canvas id="rdCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;display:block;"></canvas>
+                <div class="visual-stage">
+                    <canvas id="rdCanvas"></canvas>
                     <div id="rd-info" style="position:absolute;top:12px;left:14px;font-family:monospace;font-size:9px;opacity:0.35;text-transform:uppercase;letter-spacing:2px;pointer-events:none;color:#fff;">Gray–Scott Reaction-Diffusion</div>
                     <div id="rd-params" style="position:absolute;bottom:12px;right:14px;font-family:monospace;font-size:9px;opacity:0.3;text-align:right;pointer-events:none;line-height:1.8;color:#fff;">f = —&nbsp;&nbsp;k = —</div>
                 </div>
@@ -426,9 +426,8 @@ void main() {
     let lastW = 0, lastH = 0;
 
     function renderToScreen(time) {
-        const stage = canvas.parentElement;
-        const W = stage ? stage.clientWidth  : window.innerWidth;
-        const H = stage ? stage.clientHeight : window.innerHeight;
+        const W = canvas.clientWidth  || canvas.offsetWidth  || 512;
+        const H = canvas.clientHeight || canvas.offsetHeight || 512;
         if (W !== lastW || H !== lastH) {
             canvas.width = W; canvas.height = H;
             lastW = W; lastH = H;

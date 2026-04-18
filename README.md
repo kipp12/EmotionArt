@@ -27,24 +27,19 @@ The main navigation bar (LEFT) includes:
 - Settings: change app behavior and appearance
 
 ## How To Use A Theme
-Step 1: Choose a theme
-Go to Themes and click the one you want.
+Step 1: Go to Themes and click the one you want use.
 
-Step 2: Enter your input
-You can use either:
+Step 2: Enter your input. You can use:
 - Text input: type anything in the text bar and click the generate button. 
 - Microphone input: click Start Listening, speak, then click stop listening. The system will provide a transcript of your speech and analyse it.
 
-Step 3: Review the results
-After analysis, each theme shows:
-
+Step 3: Review the results. After analysis, each theme shows:
 - Artwork 
 - Status
 - Emotion scores
 - Transcript
 
-Step 4: Save your artwork
-Once a piece has been generated, the Save button becomes available. This saves the artwork to your gallery area.
+Step 4: Save your artwork. Once a piece has been generated, the Save button becomes available. This saves the artwork to your gallery area.
 
 ## Using The Gallery
 The gallery page hosts all of your saved art pieces. Here, you can:

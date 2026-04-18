@@ -4,7 +4,7 @@
 EmotionArt is an interactive procedural art generator that extracts emotion from typed or spoken transcripts to creates unique and fun artifacts. Users can choose from multiple visual themes and save/favourite their generated artwork. 
 
 ## Requirements
-- Python 3.12 is required.
+- Python 3.12 
 - Internet access is required to install the requirements file and the language processing models.
 - A windows laptop or computer. Please note this application is not appropriate for mobile screens. 
 

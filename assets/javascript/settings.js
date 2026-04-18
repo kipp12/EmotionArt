@@ -1,6 +1,38 @@
+/**
+ * Settings — global preferences manager (loaded on every page via _sidebar.html).
+ *
+ * Responsibilities:
+ *   1. Persist user settings to localStorage under 'emotionart-settings'.
+ *   2. Apply visual preferences (theme, density, retro font, accessibility)
+ *      by setting data-* attributes on <html>, which the CSS in base.css reads.
+ *   3. On the /settings page only: populate the form, handle save/reset,
+ *      manage the large-model download panel, and expose gallery management buttons.
+ *
+ * Settings keys:
+ *   appearance_theme         — 'light' | 'dark'
+ *   appearance_density       — 'comfortable' | 'compact'
+ *   appearance_retro         — 'default' | 'reduced'  (pixel font vs modern font)
+ *   accessibility_large_text — boolean
+ *   accessibility_reduced_motion — boolean
+ *   accessibility_focus_visibility — boolean
+ *   audio_default_mic        — 'manual' | 'auto'  (auto-start mic on page load)
+ *   audio_transcript_persistence — 'keep' | 'clear'  (clear transcript after analysis)
+ *   model_classifier         — 'base' | 'large'  (which HuggingFace model to use)
+ *   saving_format            — 'png' (currently only PNG is supported)
+ *   saving_filename_pattern  — template string e.g. 'MY [PAGE_NAME] ART [NUMBER]'
+ *
+ * Exposed globally:
+ *   window.getEmotionArtSettings() — returns the current normalised settings object.
+ *     Used by every theme's app controller to read model_classifier and audio prefs.
+ */
 (function () {
+    // localStorage key where all settings are persisted as a JSON string.
     const STORAGE_KEY = 'emotionart-settings';
+
+    // Whitelist of accepted model_classifier values.
     const VALID_MODEL_CLASSIFIERS = new Set(['base', 'large']);
+
+    // Default settings — used on first visit or after a reset.
     const DEFAULT_SETTINGS = {
         appearance_theme: 'light',
         appearance_density: 'comfortable',
@@ -15,6 +47,10 @@
         saving_filename_pattern: 'MY [PAGE_NAME] ART [NUMBER]',
     };
 
+    /**
+     * Merge raw settings with defaults, ensuring all keys exist
+     * and the model_classifier value is valid.
+     */
     function normalizeSettings(rawSettings) {
         const settings = { ...DEFAULT_SETTINGS, ...(rawSettings || {}) };
         if (!VALID_MODEL_CLASSIFIERS.has(settings.model_classifier)) {
@@ -23,11 +59,16 @@
         return settings;
     }
 
+    /**
+     * Read settings from localStorage, filter to only known keys,
+     * and return a normalised copy. Returns defaults if nothing is stored.
+     */
     function readStoredSettings() {
         try {
             const raw = window.localStorage.getItem(STORAGE_KEY);
             if (!raw) return { ...DEFAULT_SETTINGS };
             const parsed = JSON.parse(raw);
+            // Only keep keys that exist in DEFAULT_SETTINGS (ignore stale keys)
             const filtered = Object.fromEntries(
                 Object.keys(DEFAULT_SETTINGS)
                     .filter(key => Object.prototype.hasOwnProperty.call(parsed, key))
@@ -39,11 +80,19 @@
         }
     }
 
+    /**
+     * Write normalised settings to localStorage.
+     */
     function writeStoredSettings(settings) {
         const normalized = normalizeSettings(settings);
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
     }
 
+    /**
+     * Apply visual settings by setting data-* attributes on <html>.
+     * CSS rules in base.css use these attributes to switch themes, fonts,
+     * motion, and text sizes without any JS DOM manipulation.
+     */
     function applySettings(settings) {
         const root = document.documentElement;
         root.dataset.appTheme = settings.appearance_theme;
@@ -53,9 +102,14 @@
         root.dataset.highContrast = 'false';
         root.dataset.reducedMotion = String(!!settings.accessibility_reduced_motion);
         root.dataset.focusVisibility = String(!!settings.accessibility_focus_visibility);
+        // Also store on window so other scripts can access without reading localStorage
         window.EmotionArtSettings = settings;
     }
 
+    /**
+     * Populate the settings form fields from a settings object.
+     * Handles both checkboxes (checked property) and other inputs (value property).
+     */
     function populateForm(form, settings) {
         Object.entries(settings).forEach(([key, value]) => {
             const field = form.elements.namedItem(key);
@@ -68,6 +122,9 @@
         });
     }
 
+    /**
+     * Read the current form state back into a settings object.
+     */
     function readForm(form) {
         const settings = { ...DEFAULT_SETTINGS };
         Object.keys(DEFAULT_SETTINGS).forEach(key => {
@@ -78,12 +135,19 @@
         return normalizeSettings(settings);
     }
 
+    /**
+     * Show a status message (e.g. "Settings saved") on the settings page.
+     */
     function syncStatus(message, tone) {
         const status = document.getElementById('settings-status');
         if (!status) return;
         status.textContent = message;
         status.dataset.tone = tone || 'neutral';
     }
+
+    // -----------------------------------------------------------------------
+    // Large model download panel (settings page only)
+    // -----------------------------------------------------------------------
 
     function getModelStatusElements() {
         return {
@@ -95,6 +159,9 @@
         };
     }
 
+    /**
+     * Update the model download panel UI based on the server's reported state.
+     */
     function syncModelStatus(status) {
         const { panel, title, state, copy, loading } = getModelStatusElements();
         if (!panel || !state || !copy || !title || !loading) return;
@@ -125,6 +192,9 @@
         copy.textContent = 'Large model download has not started.';
     }
 
+    /**
+     * Fetch the large model's current state from the server.
+     */
     async function fetchModelStatus() {
         const response = await fetch('/api/settings/model-status?model=large');
         const payload = await response.json();
@@ -135,6 +205,9 @@
         return payload;
     }
 
+    /**
+     * Ask the server to start downloading the large model in the background.
+     */
     async function startLargeModelPreload() {
         const response = await fetch('/api/settings/model-preload', {
             method: 'POST',
@@ -149,10 +222,16 @@
         return payload;
     }
 
+    // -----------------------------------------------------------------------
+    // Settings page bootstrap (only runs if the settings form exists in the DOM)
+    // -----------------------------------------------------------------------
+
     function bootSettingsPage() {
         const form = document.getElementById('settings-form');
         if (!form) return;
 
+        // Populate form with stored values, then write them back (migration step
+        // — ensures any new default keys are persisted on upgrade).
         const storedSettings = readStoredSettings();
         populateForm(form, storedSettings);
         writeStoredSettings(storedSettings);
@@ -162,6 +241,8 @@
         const clearMetadataButton = document.getElementById('clear-metadata');
         const clearGalleryButton = document.getElementById('clear-gallery');
         const modelSelector = form.elements.namedItem('model_classifier');
+
+        // Poll handle for checking large-model download progress.
         let modelStatusPoll = null;
 
         function stopModelPolling() {
@@ -174,6 +255,7 @@
         async function refreshModelStatus() {
             try {
                 const payload = await fetchModelStatus();
+                // Stop polling once the model reaches a terminal state.
                 if (payload.state === 'ready' || payload.state === 'error' || payload.state === 'idle') {
                     stopModelPolling();
                 }
@@ -185,9 +267,11 @@
 
         function ensureModelPolling() {
             stopModelPolling();
+            // Poll every 3 seconds until the download completes.
             modelStatusPoll = window.setInterval(refreshModelStatus, 3000);
         }
 
+        // On load: check large-model status once (unless already selected as 'large').
         if (modelSelector) {
             if (modelSelector.value !== 'large') {
                 fetchModelStatus().catch(() => {
@@ -195,6 +279,7 @@
                 });
             }
 
+            // When the user switches to the large model, trigger the download.
             modelSelector.addEventListener('change', async () => {
                 if (modelSelector.value === 'large') {
                     window.alert('Large Model may take a while to download and prepare the first time you select it.');
@@ -217,6 +302,7 @@
             });
         }
 
+        // If the user already has 'large' selected, start polling immediately.
         if (storedSettings.model_classifier === 'large') {
             syncModelStatus({ state: 'loading' });
             refreshModelStatus();
@@ -227,6 +313,7 @@
             });
         }
 
+        // Save button — persist current form state and apply visual changes.
         saveButton?.addEventListener('click', event => {
             event.preventDefault();
             const settings = readForm(form);
@@ -235,6 +322,7 @@
             syncStatus('Settings saved', 'success');
         });
 
+        // Reset button — restore all settings to factory defaults.
         resetButton?.addEventListener('click', event => {
             event.preventDefault();
             writeStoredSettings(DEFAULT_SETTINGS);
@@ -247,6 +335,7 @@
             });
         });
 
+        // Clear metadata — wipe transcripts/emotions/favourites but keep images.
         clearMetadataButton?.addEventListener('click', async event => {
             event.preventDefault();
             if (!window.confirm('Clear saved transcripts, emotion scores, and favourite flags?')) return;
@@ -255,6 +344,7 @@
             syncStatus(response.ok ? 'Saved metadata cleared' : (payload.error || 'Unable to clear metadata'), response.ok ? 'success' : 'error');
         });
 
+        // Clear gallery — delete everything (images + metadata).
         clearGalleryButton?.addEventListener('click', async event => {
             event.preventDefault();
             if (!window.confirm('Delete every saved gallery image and metadata file?')) return;
@@ -264,13 +354,20 @@
         });
     }
 
+    // -----------------------------------------------------------------------
+    // Immediate execution: apply stored settings on every page load
+    // (runs before DOMContentLoaded so the theme is set before first paint).
+    // -----------------------------------------------------------------------
     const initialSettings = readStoredSettings();
     applySettings(initialSettings);
 
+    // Boot the settings page form (no-op if the form element doesn't exist).
     document.addEventListener('DOMContentLoaded', () => {
         bootSettingsPage();
     });
 
+    // Expose a global getter so other scripts (theme app controllers, gallery-save)
+    // can read the current settings without touching localStorage directly.
     window.getEmotionArtSettings = function () {
         return readStoredSettings();
     };

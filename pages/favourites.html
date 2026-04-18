@@ -54,6 +54,17 @@
     </div>
 
     <script>
+        /*
+         * Favourites page client script.
+         *
+         * Same client behaviour as gallery.html (favourite / rename /
+         * delete + cross-tab sync via localStorage), but the page only
+         * shows cards where item.favorite === true (filtered server-side
+         * in app.py's favourites route).
+         *
+         * Unfavouriting a card here makes it disappear from this view
+         * (because the reload re-runs the server-side filter).
+         */
         function broadcastGalleryChange(type, filename) {
             window.localStorage.setItem('emotionart-gallery-event', JSON.stringify({
                 type,

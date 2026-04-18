@@ -61,19 +61,59 @@
         </main>
     </div>
 
-<!-- Vertex shader (a_pos always at location 0) -->
+<!--
+    ============================================================
+    BUBBLES — Gray-Scott Reaction-Diffusion
+    ============================================================
+    A GPU-accelerated reaction-diffusion system (Gray-Scott model)
+    reacting to emotion scores from the backend classifier.
+
+    How it works:
+      1. Two chemicals A and B occupy each pixel of a 512x512 grid.
+      2. Each simulation step updates every pixel using the PDE:
+             ∂A/∂t = Da·∇²A - A·B² + f·(1-A)
+             ∂B/∂t = Db·∇²B + A·B² - (f+k)·B
+         where `f` is the "feed" rate, `k` is the "kill" rate, and
+         ∇² is the Laplacian (computed with a 9-point stencil).
+      3. The "f" and "k" parameters are blended from emotion scores —
+         different (f,k) regions of the Pearson/Munafo parameter
+         space give very different patterns (spots, stripes, waves).
+      4. A ping-pong pair of float textures + FBOs holds the state;
+         each step reads from one and writes to the other.
+      5. On render we sample the B field, do a cheap normal-from-
+         gradient lighting pass, vignette + tone-map, and output.
+
+    Libraries / browser APIs:
+      - WebGL 2.0 (required) with EXT_color_buffer_float extension
+        for RGBA32F render targets (falls back to RGBA8 if missing).
+      - OES_texture_float_linear for bilinear sampling on float
+        textures (falls back to NEAREST if missing — silent sampler
+        failure otherwise produces a black screen).
+      - Web Speech API (SpeechRecognition) for mic input.
+      - Shared helpers: gallery-save.js, settings.js (via sidebar).
+
+    Four fragment shaders drive the pipeline (ids: vs, init-fs,
+    seed-fs, sim-fs, render-fs). The vertex shader is a plain
+    fullscreen quad shared by all passes.
+-->
+
+<!-- Vertex shader — positions the fullscreen quad. `a_pos` is always bound
+     to attrib location 0 so we can bind the same quad buffer across all programs. -->
 <script id="vs" type="x-shader/x-vertex">
 attribute vec2 a_pos;
 void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
 </script>
 
-<!-- Init: fill texture with A=1, B=0 -->
+<!-- Init shader — clears a simulation texture to A=1, B=0 (Gray-Scott
+     "nothing happening yet" state). Run once per ping-pong texture at startup. -->
 <script id="init-fs" type="x-shader/x-fragment">
 precision highp float;
 void main() { gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); }
 </script>
 
-<!-- Seed: draw a circular patch of (A=0.5, B=0.25) -->
+<!-- Seed shader — paints a circular patch of (A=0.5, B=0.25) at (u_center)
+     on top of whatever's in u_prev. The seed triggers the reaction because
+     a non-zero B region can feed the A·B² term in the PDE. -->
 <script id="seed-fs" type="x-shader/x-fragment">
 precision highp float;
 uniform sampler2D u_prev;
@@ -92,7 +132,10 @@ void main() {
 }
 </script>
 
-<!-- Gray-Scott simulation step -->
+<!-- Simulation shader — one Gray-Scott PDE step per pixel. Samples the 8
+     neighbours of each pixel to compute the discrete Laplacian, then updates
+     A and B using the reaction-diffusion equation. Called STEPS_PER_FRAME=10
+     times per animation frame for faster evolution without lag. -->
 <script id="sim-fs" type="x-shader/x-fragment">
 precision highp float;
 uniform sampler2D u_prev;
@@ -123,7 +166,12 @@ void main() {
 }
 </script>
 
-<!-- Render: colourize the B field -->
+<!-- Render shader — samples the B field from the sim texture and turns it
+     into a colour image with fake lighting:
+       - smoothstep mask around B ≈ 0.05-0.55 → blob/background blend
+       - gradient-based normal for diffuse + specular highlights
+       - vignette + Reinhard tone-map + gamma correction for mood
+     u_colA = background colour, u_colB = blob colour (both blend with emotion). -->
 <script id="render-fs" type="x-shader/x-fragment">
 precision highp float;
 uniform sampler2D u_prev;
@@ -171,7 +219,24 @@ void main() {
 
     <script src="{{ url_for('static', filename='javascript/gallery-save.js') }}"></script>
     <script>
-    // Constants
+    /* ================================================================
+       CONSTANTS
+       ================================================================
+       SIM_W / SIM_H      — simulation texture resolution. 512x512 is a
+                            good balance between detail and GPU cost.
+       STEPS_PER_FRAME    — how many Gray-Scott iterations to run per
+                            animation frame. Higher = faster pattern
+                            evolution at the cost of more GPU work.
+       HISTORY_SIZE       — how many past emotion readings to blend
+                            (exponential decay, weight 0.6^age).
+       EMOTION_PARAMS     — per-emotion (f, k, Da, Db) tuples. Different
+                            points in the Pearson parameter space give
+                            radically different patterns:
+                              joy     (low f)  → spots / cell-like
+                              anger   (high f) → chaotic churn
+                              sadness (low f, low k) → slow waves
+       EMOTION_COLORS     — per-emotion background + blob colours.
+       EMOTION_KEYS       — canonical label order matching the classifier. */
     const SIM_W           = 512;
     const SIM_H           = 512;
     const STEPS_PER_FRAME = 10;
@@ -197,7 +262,12 @@ void main() {
     };
     const EMOTION_KEYS = ['anger','disgust','fear','joy','neutral','sadness','surprise'];
 
-    // Canvas & Context
+    /* ================================================================
+       CANVAS + WebGL 2.0 CONTEXT
+       ================================================================
+       preserveDrawingBuffer: true is required for `canvas.toDataURL()`
+       to capture the current frame for the gallery save — without it
+       the browser may clear the buffer right after each paint. */
     const canvas = document.getElementById('rdCanvas');
 
     // Size the canvas pixel buffer to match its CSS size BEFORE
@@ -233,7 +303,14 @@ void main() {
                 '| format:', floatOk ? 'RGBA32F' : 'RGBA8',
                 '| filter:', TEX_FILT === gl.LINEAR ? 'LINEAR' : 'NEAREST');
 
-    // Shader Helpers
+    /* ================================================================
+       SHADER HELPERS
+       ================================================================
+       compile()     — compile one shader stage (vertex or fragment) and
+                       log any GLSL errors to the console for debugging.
+       makeProgram() — link a vertex + fragment pair into a program,
+                       forcing a_pos to attrib location 0 so bindQuad()
+                       works uniformly across all four programs. */
     function compile(type, src) {
         const s = gl.createShader(type);
         gl.shaderSource(s, src);
@@ -262,7 +339,9 @@ void main() {
     const simProg  = makeProgram(VS, document.getElementById('sim-fs').textContent);
     const rndrProg = makeProgram(VS, document.getElementById('render-fs').textContent);
 
-    // Fullscreen quad — always at attrib location 0
+    /* Fullscreen quad — 6 vertices (two triangles) covering clip-space
+       [-1,-1] to [1,1]. Every shader pass draws this same quad; the
+       fragment shader does all the real work. */
     const quadBuf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
     gl.bufferData(gl.ARRAY_BUFFER,
@@ -274,7 +353,18 @@ void main() {
         gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     }
 
-    // Ping-Pong Textures & FBOs
+    /* ================================================================
+       PING-PONG TEXTURES + FBOs
+       ================================================================
+       The Gray-Scott update reads every neighbour of every pixel, so
+       you can't write the result into the same texture you're reading
+       from — you'd see half-updated values. Instead we use two
+       textures (texA, texB) each wrapped in a framebuffer (fboA, fboB).
+       Each step reads from A, writes to B, then swaps. This is called
+       "ping-pong rendering" and is standard for GPU simulations.
+
+       WRAP_REPEAT on both axes → the simulation is toroidal (patterns
+       flowing off one edge reappear on the opposite edge). */
     function makeTex() {
         const t = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, t);
@@ -310,7 +400,9 @@ void main() {
         let f = fboA; fboA = fboB; fboB = f;
     }
 
-    // Pass helpers
+    /* Generic pass helper — bind the given program + quad + FBO, run a
+       caller-supplied uniform setter, then issue the draw call. Used
+       for every pass (init, seed, sim, render-to-FBO). */
     function drawToFBO(fbo, prog, setupUniforms) {
         gl.useProgram(prog);
         bindQuad();
@@ -336,7 +428,12 @@ void main() {
     }
     initBoth();
 
-    // Seed injection
+    /* ================================================================
+       SEED INJECTION — drop circular (A=0.5, B=0.25) patches into the
+       simulation. Without seeds the reaction never starts (B starts at
+       zero so the feed term A·B² is always zero). `addSeeds(n, r)`
+       drops n patches of radius r at random positions. Called at
+       startup and on each analysis to nudge the pattern. */
     const seedLoc = {
         prev:    gl.getUniformLocation(seedProg, 'u_prev'),
         simSize: gl.getUniformLocation(seedProg, 'u_simSize'),
@@ -381,7 +478,23 @@ void main() {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
 
-    // Emotion state
+    /* ================================================================
+       EMOTION STATE
+       ================================================================
+       emotionHistory — ring of the last 8 emotion maps, used to
+                        smooth out sudden swings with exponential decay.
+       curF/curK/…    — currently-active simulation parameters (what
+                        the shader actually uses this frame).
+       curBg/curBlob  — currently-active colours (smoothly interpolated).
+       tarBg/tarBlob  — target colours; curBg lerps toward tarBg each
+                        frame at 3% so transitions are gentle.
+
+       blendParams() — take a blended emotion map and compute
+                       score²-weighted averages of the per-emotion
+                       (f, k, Da, Db) and colours. Squaring the scores
+                       (same technique as elsewhere in the project) lets
+                       the dominant emotion drive the result without
+                       muddy averaging. */
     const emotionHistory = [];
     let curF=0.037, curK=0.065, curDa=0.2097, curDb=0.105;
     let curBg=[0.0,0.02,0.03], curBlob=[0.25,0.55,0.7];
@@ -403,6 +516,10 @@ void main() {
             `f = ${curF.toFixed(4)}    k = ${curK.toFixed(4)}`;
     }
 
+    /* Push a new emotion reading onto the history ring, then compute
+       an exponentially-decayed blend (weight = 0.6^age) so recent
+       readings dominate while older ones fade. Feeds the blend into
+       blendParams() to update the sim target. */
     function pushHistory(emotions) {
         const entry={};
         EMOTION_KEYS.forEach(k=>entry[k]=0);
@@ -421,6 +538,10 @@ void main() {
         blendParams(blend);
     }
 
+    /* Apply a full /analyse payload to the simulation:
+         - Drop N fresh seeds proportional to the high-energy emotions
+           (anger, surprise, joy get more seeds than sadness).
+         - Update history / blend for the colour + param transition. */
     function applyEmotions(emotions) {
         const raw={};
         emotions.forEach(e=>raw[e.label]=e.score);
@@ -431,7 +552,10 @@ void main() {
         pushHistory(emotions);
     }
 
-    // Simulation step
+    /* ================================================================
+       SIMULATION STEP — run the Gray-Scott update once. Read from texA,
+       write to texB via fboB, then swap. Uniforms are cached once to
+       avoid per-frame string lookups. */
     const simL = {
         prev:    gl.getUniformLocation(simProg, 'u_prev'),
         simSize: gl.getUniformLocation(simProg, 'u_simSize'),
@@ -454,7 +578,11 @@ void main() {
         swap();
     }
 
-    // Render to screen
+    /* ================================================================
+       RENDER-TO-SCREEN — sample the latest sim texture, run the
+       lighting/colour shader, and draw to the default framebuffer
+       (the canvas). Also smoothly lerps curBg/curBlob toward their
+       targets at 3% per frame so colour transitions feel natural. */
     const rndrL = {
         prev:       gl.getUniformLocation(rndrProg, 'u_prev'),
         screenSize: gl.getUniformLocation(rndrProg, 'u_screenSize'),
@@ -488,7 +616,12 @@ void main() {
         gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
 
-    // Main loop
+    /* ================================================================
+       MAIN LOOP — requestAnimationFrame ticks at ~60fps. Each tick:
+         1. Run STEPS_PER_FRAME=10 sim updates (≈600 sim iterations/sec).
+         2. Render one frame to screen.
+       First-frame and 30-frame logs are diagnostic (catch black-screen
+       regressions quickly during development). */
     let frameCount = 0;
     function loop(ts) {
         for (let i = 0; i < STEPS_PER_FRAME; i++) simStep();
@@ -500,7 +633,13 @@ void main() {
     }
     requestAnimationFrame(loop);
 
-    // App controller
+    /* ================================================================
+       APP CONTROLLER — wires DOM up to the simulation. Mirrors the same
+       mic/text/analyse pattern used by the other art pages:
+         - Web Speech API (SpeechRecognition) for mic → transcript.
+         - Text input as a fallback / alternative input.
+         - POST to /analyse, receive emotion scores, call applyEmotions().
+         - Gallery save via the shared saveArtwork() helper. */
     const micBtn    = document.getElementById('mic-toggle');
     const txtInput  = document.getElementById('text-input');
     const txtSubmit = document.getElementById('text-submit');

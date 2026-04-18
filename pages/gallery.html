@@ -54,6 +54,23 @@
     </div>
 
     <script>
+        /*
+         * Gallery page client script.
+         *
+         * Wires up the favourite / rename / delete buttons on each
+         * gallery card. All three hit Flask endpoints under /api/gallery/*
+         * (defined in app.py). After each successful change we write a
+         * localStorage event so other open EmotionArt tabs (gallery,
+         * favourites) can auto-refresh.
+         *
+         * The favourites.html page re-uses these same handlers via a
+         * matching `data-*` attribute set — everything is wired through
+         * data attributes rather than IDs so multiple cards work.
+         */
+
+        /* Broadcast a gallery change to every other open tab by writing
+         * to localStorage — other tabs listen for the 'storage' event
+         * and reload so their view stays in sync. */
         function broadcastGalleryChange(type, filename) {
             window.localStorage.setItem('emotionart-gallery-event', JSON.stringify({
                 type,
@@ -62,6 +79,7 @@
             }));
         }
 
+        /* Favourite toggle — POST to /api/gallery/favorite, reload on success. */
         document.querySelectorAll('[data-favorite]').forEach(button => {
             button.addEventListener('click', async () => {
                 const filename = button.dataset.filename;
@@ -83,6 +101,7 @@
             });
         });
 
+        /* Rename artwork — prompt for a new title, POST to /api/gallery/rename. */
         document.querySelectorAll('[data-rename]').forEach(button => {
             button.addEventListener('click', async () => {
                 const filename = button.dataset.filename;
@@ -111,6 +130,8 @@
             });
         });
 
+        /* Delete artwork — confirm, POST to /api/gallery/delete, then
+         * remove the DOM card. 404 is treated as success (already gone). */
         document.querySelectorAll('[data-delete]').forEach(button => {
             button.addEventListener('click', async () => {
                 const filename = button.dataset.filename;
@@ -139,6 +160,9 @@
             });
         });
 
+        /* Cross-tab sync — reload this page when another tab emits a
+         * gallery change event, or when this tab regains focus (so new
+         * artwork saved from a theme page shows up immediately). */
         window.addEventListener('storage', event => {
             if (event.key !== 'emotionart-gallery-event' || !event.newValue) return;
             window.location.reload();

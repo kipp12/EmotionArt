@@ -23,6 +23,15 @@
     </main>
 
     <script>
+        /*
+         * Gallery single-item viewer script.
+         *
+         * Same delete/favourite handlers as gallery.html, but only one
+         * card is on screen. After delete, redirect to /gallery since
+         * the current image no longer exists. After favourite toggle,
+         * reload to pick up the updated star state.
+         * Cross-tab sync uses the same localStorage 'emotionart-gallery-event' key.
+         */
         function broadcastGalleryChange(type, filename) {
             window.localStorage.setItem('emotionart-gallery-event', JSON.stringify({
                 type,

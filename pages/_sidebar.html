@@ -1,3 +1,21 @@
+<script>
+    (function () {
+        try {
+            const raw = window.localStorage.getItem('emotionart-settings');
+            const settings = raw ? JSON.parse(raw) : {};
+            const root = document.documentElement;
+            root.dataset.appTheme = settings.appearance_theme || 'light';
+            root.dataset.appDensity = settings.appearance_density || 'comfortable';
+            root.dataset.appRetro = settings.appearance_retro || 'default';
+            root.dataset.largeText = String(!!settings.accessibility_large_text);
+            root.dataset.highContrast = 'false';
+            root.dataset.reducedMotion = String(!!settings.accessibility_reduced_motion);
+            root.dataset.focusVisibility = String(!!settings.accessibility_focus_visibility);
+        } catch (error) {
+            document.documentElement.dataset.appTheme = 'light';
+        }
+    })();
+</script>
 <aside class="app-sidebar">
     <div class="brand-text">
         <h1 class="brand-title">Emotion<span class="brand-title-accent">Art</span></h1>

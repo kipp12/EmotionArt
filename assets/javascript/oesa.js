@@ -31,13 +31,34 @@ let opacity = 15;    // alpha of the fade rectangle — bigger = faster trail de
 
 // --- Current emotion (stored for reference; behaviour lives in the switch).
 let currentEmotion = "neutral";
+let sketchCanvas = null;
+
+function getStageSize() {
+    const holder = document.getElementById('p5-holder');
+    if (holder) {
+        return {
+            width: Math.max(holder.clientWidth || 0, 320),
+            height: Math.max(holder.clientHeight || 0, 320),
+        };
+    }
+
+    return {
+        width: Math.min(window.innerWidth, 900),
+        height: Math.min(window.innerHeight, 900),
+    };
+}
 
 /**
  * p5.js lifecycle — runs once on page load.
  * Sets up the canvas and exposes the emotion hook for the backend.
  */
 function setup() {
-    createCanvas(600, 600);
+    const stageSize = getStageSize();
+    sketchCanvas = createCanvas(stageSize.width, stageSize.height);
+    const holder = document.getElementById('p5-holder');
+    if (holder) {
+        sketchCanvas.parent('p5-holder');
+    }
     background(240);
 
     x = width / 2;
@@ -51,6 +72,12 @@ function setup() {
         const top = emotions[0].label.toLowerCase();
         applyEmotion(top);
     };
+}
+
+function windowResized() {
+    const stageSize = getStageSize();
+    resizeCanvas(stageSize.width, stageSize.height);
+    resetSketch();
 }
 
 /**

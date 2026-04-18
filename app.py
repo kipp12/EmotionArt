@@ -70,6 +70,8 @@ def page_display_name(page_name):
         'purple_live': 'PURPLE LIVE',
         'flow_field': 'FLOW FIELD',
         'geometric_grid': 'GEOMETRIC GRID',
+        'aurora': 'AURORA',
+        'oesa': 'OESA',
     }
     return mapping.get(page_name, page_name.replace('_', ' ').upper())
 
@@ -278,6 +280,18 @@ def geometric_grid():
     Uses p5.js.
     """
     return render_template('geometric_grid.html')
+
+
+@app.route('/aurora')
+def aurora():
+    """Layered aurora sky with emotion-driven hue, motion, and brightness."""
+    return render_template('aurora.html')
+
+
+@app.route('/oesa')
+def oesa():
+    """OESA-inspired turtle sketch embedded in the shared EmotionArt shell."""
+    return render_template('oesa.html')
 
 
 # ---------------------------------------------------------------------------

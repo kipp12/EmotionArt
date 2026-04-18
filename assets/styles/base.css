@@ -35,11 +35,11 @@ body {
 }
 
 html[data-app-theme="dark"] {
-    --bone: #1b1714;
-    --paper: #241f1a;
-    --ink: #f7e9d3;
-    --muted: #d3c3af;
-    --line: #f7e9d3;
+    --bone: #0f0f0f;
+    --paper: #181818;
+    --ink: #f1f1f1;
+    --muted: #b9b9b9;
+    --line: #f1f1f1;
     --panel-shadow: 4px 4px 0 #000000;
 }
 
@@ -284,7 +284,7 @@ a {
     height: 100vh;
     padding: 24px;
     border-right: 4px solid var(--line);
-    background: rgba(255, 249, 239, 0.92);
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
 }
 
 .brand-kicker,
@@ -311,7 +311,7 @@ a {
 
 .brand-title {
     font-size: clamp(0.78rem, 1.5vw, 0.95rem);
-    color: #111111;
+    color: var(--ink);
 }
 
 .brand-title-accent {
@@ -386,11 +386,26 @@ a {
 }
 
 html[data-app-theme="dark"] .nav-link {
-    border-color: #111111;
+    border-color: var(--line);
+    background: #212121;
+    box-shadow: 4px 4px 0 #101010;
 }
 
 html[data-app-theme="dark"] .settings-row {
-    border-top-color: rgba(247, 233, 211, 0.22);
+    border-top-color: rgba(241, 241, 241, 0.16);
+}
+
+html[data-app-theme="dark"] .app-sidebar {
+    background: rgba(15, 15, 15, 0.96);
+}
+
+html[data-app-theme="dark"] .sidebar-footer {
+    background: #212121;
+}
+
+html[data-app-theme="dark"] .nav-link:hover,
+html[data-app-theme="dark"] .nav-link:focus-visible {
+    box-shadow: 6px 6px 0 #0a0a0a;
 }
 
 .nav-link:hover,
@@ -401,6 +416,13 @@ html[data-app-theme="dark"] .settings-row {
 .nav-link.active {
     background: var(--accent);
     color: #fff9ef;
+}
+
+html[data-app-theme="dark"] .nav-link.active {
+    background: var(--accent);
+    color: #fff9ef;
+    border-color: var(--line);
+    box-shadow: none;
 }
 
 .nav-link.disabled {
@@ -913,6 +935,127 @@ html[data-app-theme="dark"] .settings-row {
 .bubble-orb-d { width: 54px; height: 54px; top: 86px; right: 58px; }
 .bubble-orb-e { width: 28px; height: 28px; top: 30px; right: 112px; }
 
+.aurora-preview {
+    background:
+        radial-gradient(circle at 20% 18%, rgba(255, 255, 255, 0.9) 0 1%, transparent 1.6%),
+        radial-gradient(circle at 78% 26%, rgba(255, 255, 255, 0.78) 0 1.2%, transparent 1.8%),
+        radial-gradient(circle at 56% 38%, rgba(255, 255, 255, 0.7) 0 1%, transparent 1.6%),
+        linear-gradient(180deg, #010813 0%, #041225 55%, #091a34 100%);
+}
+
+.aurora-band,
+.aurora-star,
+.oesa-orbit,
+.oesa-trace {
+    position: absolute;
+    display: block;
+}
+
+.aurora-band {
+    left: -6%;
+    width: 112%;
+    border-radius: 999px;
+    filter: blur(8px);
+    opacity: 0.82;
+    mix-blend-mode: screen;
+}
+
+.aurora-band-a {
+    top: 28px;
+    height: 44px;
+    background: linear-gradient(90deg, rgba(77, 236, 201, 0) 0%, rgba(77, 236, 201, 0.88) 28%, rgba(146, 105, 255, 0.82) 72%, rgba(146, 105, 255, 0) 100%);
+    transform: rotate(-7deg);
+}
+
+.aurora-band-b {
+    top: 76px;
+    height: 52px;
+    background: linear-gradient(90deg, rgba(74, 246, 152, 0) 0%, rgba(74, 246, 152, 0.8) 24%, rgba(73, 193, 255, 0.85) 56%, rgba(73, 193, 255, 0) 100%);
+    transform: rotate(5deg);
+}
+
+.aurora-band-c {
+    top: 122px;
+    height: 36px;
+    background: linear-gradient(90deg, rgba(255, 164, 220, 0) 0%, rgba(255, 164, 220, 0.74) 18%, rgba(126, 219, 255, 0.78) 60%, rgba(126, 219, 255, 0) 100%);
+    transform: rotate(-4deg);
+}
+
+.aurora-star {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
+}
+
+.aurora-star-a {
+    top: 34px;
+    left: 34px;
+}
+
+.aurora-star-b {
+    top: 54px;
+    right: 46px;
+}
+
+.aurora-star-c {
+    top: 92px;
+    left: 128px;
+}
+
+.oesa-preview {
+    background:
+        radial-gradient(circle at center, rgba(255, 255, 255, 0.76) 0 6%, transparent 7%),
+        linear-gradient(180deg, #f7f1e6 0%, #efe3cf 100%);
+}
+
+.oesa-orbit {
+    border: 3px solid rgba(17, 17, 17, 0.78);
+    border-radius: 50%;
+}
+
+.oesa-orbit-a {
+    width: 124px;
+    height: 124px;
+    top: 24px;
+    left: 28px;
+}
+
+.oesa-orbit-b {
+    width: 84px;
+    height: 84px;
+    top: 64px;
+    left: 92px;
+}
+
+.oesa-orbit-c {
+    width: 44px;
+    height: 44px;
+    top: 84px;
+    left: 122px;
+}
+
+.oesa-trace {
+    height: 3px;
+    background: rgba(193, 54, 26, 0.82);
+    transform-origin: left center;
+}
+
+.oesa-trace-a {
+    width: 104px;
+    top: 56px;
+    left: 52px;
+    transform: rotate(32deg);
+}
+
+.oesa-trace-b {
+    width: 86px;
+    top: 116px;
+    left: 72px;
+    transform: rotate(-24deg);
+}
+
 .theme-stats {
     display: flex;
     gap: 10px;
@@ -1053,9 +1196,9 @@ html[data-app-theme="dark"] .readout-cell,
 html[data-app-theme="dark"] .readout-cell.alt,
 html[data-app-theme="dark"] .select-wrap,
 html[data-app-theme="dark"] .text-input-wrap {
-    background: #181311;
-    color: #f7e9d3;
-    border-color: #f7e9d3;
+    background: #181818;
+    color: var(--line);
+    border-color: var(--line);
 }
 
 html[data-app-theme="dark"] .control-select,
@@ -1065,44 +1208,44 @@ html[data-app-theme="dark"] .meta-label,
 html[data-app-theme="dark"] .status-text,
 html[data-app-theme="dark"] .score-list,
 html[data-app-theme="dark"] pre {
-    color: #f7e9d3;
+    color: var(--line);
 }
 
 html[data-app-theme="dark"] .control-select option {
-    background: #f7e9d3;
-    color: #1b1714;
+    background: #f1f1f1;
+    color: #111111;
 }
 
 html[data-app-theme="dark"] .control-grid {
-    border-bottom-color: #f7e9d3;
+    border-bottom-color: var(--line);
 }
 
 html[data-app-theme="dark"] .control-grid > * {
-    border-right-color: #f7e9d3;
+    border-right-color: var(--line);
 }
 
 html[data-app-theme="dark"] .text-input::placeholder {
-    color: rgba(247, 233, 211, 0.58);
+    color: rgba(241, 241, 241, 0.58);
 }
 
 html[data-app-theme="dark"] .readout-cell.alt {
-    background: #241c18;
+    background: #202020;
 }
 
 html[data-app-theme="dark"] .select-wrap {
-    background: #241c18;
+    background: #202020;
 }
 
 html[data-app-theme="dark"] .text-input-wrap {
-    background: #1f1916;
+    background: #1d1d1d;
 }
 
 html[data-app-theme="dark"] .control-dock {
-    background: rgba(24, 19, 17, 0.96);
+    background: rgba(24, 24, 24, 0.96);
 }
 
 html[data-app-theme="dark"] .save-button {
-    border-color: #f7e9d3;
+    border-color: var(--line);
 }
 
 .control-grid {

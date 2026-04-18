@@ -16,7 +16,7 @@
 </head>
 <body>
     <div class="app-shell">
-        {% set themes_active = false %}
+        {% set themes_active = true %}
         {% set gallery_active = false %}
         {% set favourites_active = false %}
         {% set settings_active = false %}
@@ -26,7 +26,7 @@
             <header class="page-header">
                 <div>
                     <h2 class="page-title">Aurora</h2>
-                    <p class="page-credit">Crafted by Angelos</p>
+                    <p class="page-credit">Crafted by Angelos K</p>
                 </div>
             </header>
 
@@ -47,11 +47,11 @@
                         <div class="readout-grid">
                             <div class="readout-cell alt">
                                 <p class="meta-label">Status</p>
-                                <p id="recording-status" class="status-text">Ready</p>
+                                <p id="status" class="status-text">READY</p>
                             </div>
                             <div class="readout-cell">
                                 <p class="meta-label">Emotion scores</p>
-                                <div id="classification-output" class="score-list">Waiting for input...</div>
+                                <div id="output" class="score-list">Waiting for input...</div>
                             </div>
                             <div class="readout-cell alt">
                                 <p class="meta-label">Transcript</p>
@@ -274,6 +274,9 @@
 
         // ─── Controls ─────────────────────────────────────────────
         const saveButton = document.getElementById('save-output');
+        const statusEl = document.getElementById('status');
+        const outputEl = document.getElementById('output');
+        const transcriptEl = document.getElementById('transcript');
         let lastEmotions = [];
         let lastTranscriptText = '';
         let isListening = false;
@@ -286,18 +289,21 @@
             return window.getEmotionArtSettings ? window.getEmotionArtSettings() : {
                 audio_default_mic: 'manual',
                 audio_transcript_persistence: 'keep',
+                model_classifier: 'base',
             };
         }
 
         function updateTranscript(text) {
-            const el = document.getElementById('transcript');
-            if (el) el.textContent = text || 'Waiting for speech or text...';
+            if (transcriptEl) transcriptEl.textContent = text || 'Waiting for speech or text...';
+        }
+
+        function updateStatus(text) {
+            if (statusEl) statusEl.textContent = text;
         }
 
         function renderEmotionScores(emos) {
-            const output = document.getElementById('classification-output');
-            if (!output) return;
-            output.innerHTML = emos.slice(0, 5).map(e => `
+            if (!outputEl) return;
+            outputEl.innerHTML = emos.slice(0, 5).map(e => `
                 <div class="score-row">
                     <span class="score-label">${e.label.toUpperCase()}</span>
                     <span class="score-value">${Math.round(e.score * 100)}%</span>
@@ -306,15 +312,22 @@
         }
 
         async function analyseText(text) {
-            document.getElementById('recording-status').textContent = 'Analysing';
-            lastTranscriptText = text;
-            updateTranscript(text);
+            const cleanedText = (text || '').trim();
+            if (!cleanedText) return;
+
+            updateStatus('ANALYSING');
+            lastTranscriptText = cleanedText;
+            updateTranscript(cleanedText);
 
             try {
+                const settings = getAppSettings();
                 const response = await fetch('/analyse', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text }),
+                    body: JSON.stringify({
+                        text: cleanedText,
+                        model: settings.model_classifier || 'base',
+                    }),
                 });
                 const payload = await response.json();
                 if (!response.ok) throw new Error(payload.details || payload.error || 'Analyse request failed');
@@ -323,14 +336,14 @@
                 renderEmotionScores(payload.emotions);
                 applyEmotions(payload.emotions);
 
-                document.getElementById('recording-status').textContent = isListening ? 'Listening' : 'Ready';
+                updateStatus(isListening ? 'LISTENING' : 'READY');
                 if (saveButton) saveButton.disabled = false;
 
-                if (getAppSettings().audio_transcript_persistence === 'clear') updateTranscript('');
+                if (settings.audio_transcript_persistence === 'clear') updateTranscript('');
             } catch (error) {
                 console.error(error);
-                document.getElementById('classification-output').textContent = error.message || 'Analysis failed.';
-                document.getElementById('recording-status').textContent = 'Model error';
+                if (outputEl) outputEl.textContent = error.message || 'Analysis failed.';
+                updateStatus('MODEL ERROR');
             }
         }
 
@@ -365,7 +378,7 @@
                     liveTranscript = '';
                     updateTranscript(finalTranscript);
                     if (finalTranscript) analyseText(finalTranscript);
-                    else document.getElementById('recording-status').textContent = 'Ready';
+                    else updateStatus('READY');
                 }
             });
 
@@ -375,7 +388,7 @@
                     button.textContent = 'START LISTENING';
                     button.classList.remove('secondary');
                     button.classList.add('passive');
-                    document.getElementById('recording-status').textContent = 'Mic error';
+                    updateStatus('MIC ERROR');
                 }
             });
 
@@ -387,7 +400,7 @@
                     button.textContent = 'START LISTENING';
                     button.classList.remove('secondary');
                     button.classList.add('passive');
-                    document.getElementById('recording-status').textContent = 'Analysing';
+                    updateStatus('ANALYSING');
                 } else {
                     committedTranscript = '';
                     liveTranscript = '';
@@ -397,7 +410,7 @@
                     button.textContent = 'END LISTENING';
                     button.classList.remove('passive');
                     button.classList.add('secondary');
-                    document.getElementById('recording-status').textContent = 'Listening';
+                    updateStatus('LISTENING');
                     recognition.start();
                 }
             });
@@ -409,7 +422,7 @@
             button.textContent = 'NO MIC API';
             button.disabled = true;
             button.classList.add('passive');
-            document.getElementById('recording-status').textContent = 'Mic unavailable';
+            updateStatus('MIC UNAVAILABLE');
         }
 
         const textInput = document.getElementById('text-input');

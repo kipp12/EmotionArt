@@ -2,29 +2,277 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>OESA Emotion Art</title>
-
-    <!-- p5.js -->
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.9.2/lib/p5.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmotionArt | OESA</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/base.css') }}">
 
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: rgb(220, 220, 220);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
+        .visual-stage.oesa-stage {
+            background:
+                radial-gradient(circle at center, rgba(255, 255, 255, 0.82) 0 10%, rgba(255, 255, 255, 0) 11%),
+                linear-gradient(180deg, #f3ead9 0%, #e6d6be 100%);
         }
     </style>
 </head>
-
 <body>
+    <div class="app-shell">
+        {% set themes_active = true %}
+        {% set gallery_active = false %}
+        {% set favourites_active = false %}
+        {% set settings_active = false %}
+        {% include '_sidebar.html' %}
 
-    <!-- Your sketch -->
-    <script src="/assets/javascript/oesa.js"></script>
+        <main class="app-main">
+            <header class="page-header">
+                <div>
+                    <h2 class="page-title">OESA</h2>
+                    <p class="page-credit">Crafted by Pei Zhang</p>
+                </div>
+            </header>
 
+            <section class="page-content stage-layout">
+                <div class="visual-stage oesa-stage">
+                    <div id="p5-holder"></div>
+                </div>
+
+                <div class="overlay-panel">
+                    <div class="control-dock">
+                        <div class="control-grid no-mode">
+                            <button id="mic-toggle" type="button" class="brutal-button passive">START LISTENING</button>
+                            <div class="text-input-wrap">
+                                <input id="text-input" class="text-input" type="text" placeholder="Type a thought, feeling, or memory...">
+                            </div>
+                            <button id="text-submit" class="text-submit" type="button">Generate</button>
+                        </div>
+                        <div class="readout-grid">
+                            <div class="readout-cell alt">
+                                <p class="meta-label">Status</p>
+                                <p id="status" class="status-text">READY</p>
+                            </div>
+                            <div class="readout-cell">
+                                <p class="meta-label">Emotion scores</p>
+                                <div id="output" class="score-list">Waiting for input...</div>
+                            </div>
+                            <div class="readout-cell alt">
+                                <p class="meta-label">Transcript</p>
+                                <pre id="transcript">Waiting for speech or text...</pre>
+                            </div>
+                            <div class="readout-cell save-cell">
+                                <button id="save-output" class="brutal-button passive save-button" type="button" disabled>Save</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+    <script src="{{ url_for('static', filename='javascript/gallery-save.js') }}"></script>
+    <script src="{{ url_for('static', filename='javascript/oesa.js') }}"></script>
+    <script>
+        const statusEl = document.getElementById('status');
+        const outputEl = document.getElementById('output');
+        const transcriptEl = document.getElementById('transcript');
+        const saveButton = document.getElementById('save-output');
+        const micButton = document.getElementById('mic-toggle');
+        const textInput = document.getElementById('text-input');
+        const textSubmit = document.getElementById('text-submit');
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        let lastEmotions = [];
+        let lastTranscriptText = '';
+        let isListening = false;
+        let recognition = null;
+        let committedTranscript = '';
+        let liveTranscript = '';
+        let shouldAnalyseOnStop = false;
+
+        function getAppSettings() {
+            return window.getEmotionArtSettings ? window.getEmotionArtSettings() : {
+                audio_default_mic: 'manual',
+                audio_transcript_persistence: 'keep',
+                model_classifier: 'base',
+            };
+        }
+
+        function updateStatus(text) {
+            if (statusEl) statusEl.textContent = text;
+        }
+
+        function updateTranscript(text) {
+            if (transcriptEl) {
+                transcriptEl.textContent = text || 'Waiting for speech or text...';
+            }
+        }
+
+        function renderEmotionScores(emotions) {
+            if (!outputEl) return;
+            if (!emotions || !emotions.length) {
+                outputEl.textContent = 'Waiting for input...';
+                return;
+            }
+
+            outputEl.innerHTML = emotions.slice(0, 5).map(emotion => `
+                <div class="score-row">
+                    <span class="score-label">${emotion.label.toUpperCase()}</span>
+                    <span class="score-value">${Math.round(emotion.score * 100)}%</span>
+                </div>
+            `).join('');
+        }
+
+        async function analyseText(text) {
+            const cleanedText = (text || '').trim();
+            if (!cleanedText) return;
+
+            lastTranscriptText = cleanedText;
+            updateTranscript(cleanedText);
+            updateStatus('ANALYSING');
+
+            try {
+                const settings = getAppSettings();
+                const response = await fetch('/analyse', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: cleanedText,
+                        model: settings.model_classifier || 'base',
+                    }),
+                });
+                const payload = await response.json();
+                if (!response.ok) {
+                    throw new Error(payload.details || payload.error || 'Analysis failed.');
+                }
+
+                lastEmotions = payload.emotions || [];
+                renderEmotionScores(lastEmotions);
+                if (typeof window.applyEmotionFromBackend === 'function') {
+                    window.applyEmotionFromBackend(lastEmotions);
+                }
+
+                updateStatus(isListening ? 'LISTENING' : 'READY');
+                if (saveButton) saveButton.disabled = false;
+
+                if (settings.audio_transcript_persistence === 'clear') {
+                    updateTranscript('');
+                }
+            } catch (error) {
+                console.error(error);
+                if (outputEl) outputEl.textContent = error.message || 'Analysis failed.';
+                updateStatus('MODEL ERROR');
+            }
+        }
+
+        function resetMicButton() {
+            micButton.textContent = 'START LISTENING';
+            micButton.classList.remove('secondary');
+            micButton.classList.add('passive');
+        }
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            recognition.addEventListener('result', event => {
+                const finalChunks = [];
+                const interimChunks = [];
+
+                for (let i = 0; i < event.results.length; i += 1) {
+                    const result = event.results[i];
+                    const text = result[0].transcript.trim();
+                    if (!text) continue;
+                    if (result.isFinal) finalChunks.push(text);
+                    else interimChunks.push(text);
+                }
+
+                committedTranscript = finalChunks.join(' ').trim();
+                liveTranscript = `${committedTranscript} ${interimChunks.join(' ').trim()}`.trim();
+                updateTranscript(liveTranscript);
+            });
+
+            recognition.addEventListener('end', () => {
+                if (isListening) {
+                    recognition.start();
+                    return;
+                }
+
+                if (shouldAnalyseOnStop) {
+                    shouldAnalyseOnStop = false;
+                    const finalTranscript = (liveTranscript || committedTranscript).trim();
+                    committedTranscript = '';
+                    liveTranscript = '';
+                    updateTranscript(finalTranscript);
+                    if (finalTranscript) analyseText(finalTranscript);
+                    else updateStatus('READY');
+                }
+            });
+
+            recognition.addEventListener('error', event => {
+                if (event.error !== 'no-speech') {
+                    isListening = false;
+                    resetMicButton();
+                    updateStatus('MIC ERROR');
+                }
+            });
+
+            micButton.addEventListener('click', () => {
+                if (isListening) {
+                    isListening = false;
+                    shouldAnalyseOnStop = true;
+                    recognition.stop();
+                    resetMicButton();
+                    updateStatus('ANALYSING');
+                    return;
+                }
+
+                committedTranscript = '';
+                liveTranscript = '';
+                shouldAnalyseOnStop = false;
+                isListening = true;
+                updateTranscript('');
+                micButton.textContent = 'END LISTENING';
+                micButton.classList.remove('passive');
+                micButton.classList.add('secondary');
+                updateStatus('LISTENING');
+                recognition.start();
+            });
+
+            if (getAppSettings().audio_default_mic === 'auto') {
+                micButton.click();
+            }
+        } else {
+            micButton.textContent = 'NO MIC API';
+            micButton.disabled = true;
+            micButton.classList.add('passive');
+            updateStatus('MIC UNAVAILABLE');
+        }
+
+        async function submitText() {
+            const text = textInput.value.trim();
+            if (!text) return;
+            textInput.value = '';
+            await analyseText(text);
+        }
+
+        textSubmit.addEventListener('click', submitText);
+        textInput.addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                submitText();
+            }
+        });
+
+        if (window.saveArtwork) {
+            window.saveArtwork({
+                pageName: 'oesa',
+                captureImage: () => {
+                    const canvas = document.querySelector('#p5-holder canvas');
+                    return canvas ? canvas.toDataURL('image/png') : '';
+                },
+                getEmotions: () => lastEmotions,
+                getTranscript: () => lastTranscriptText,
+            });
+        }
+    </script>
 </body>
 </html>

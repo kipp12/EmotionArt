@@ -21,10 +21,10 @@ When you open EmotionArt, you are welcomed by the Themes page. This is where you
 
 The main navigation bar (LEFT) includes:
 
-- Themes: choose an art style
-- Gallery: view all saved artwork
-- Favourites: view only starred artwork
-- Settings: change app behavior and appearance
+- Themes: choose an art style.
+- Gallery: view all saved artwork.
+- Favourites: view only favourite artwork.
+- Settings: change app behavior and appearance.
 
 ## How To Use A Theme
 Step 1: Go to Themes and click the one you want use.

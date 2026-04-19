@@ -69,7 +69,7 @@ async function saveArtwork(options) {
                 saveButton.disabled = false;
             }, 1200);
         } catch (error) {
-            window.alert(error.message || 'Save failed.');
+            showToast(error.message || 'Save failed.');
             saveButton.textContent = 'SAVE';
             saveButton.disabled = false;
         }

@@ -772,6 +772,108 @@ html[data-app-theme="dark"] .nav-link.active {
     box-shadow: none;
 }
 
+/* Inline field validation error — shown beneath form inputs with bad values */
+.field-error {
+    display: block;
+    color: #9b1a0a;
+    font-family: var(--font-body);
+    font-size: 0.5rem;
+    letter-spacing: 0.5px;
+    margin-top: 0.25rem;
+    min-height: 1em;
+}
+
+/* Inline error toast — shown instead of alert() for gallery/save failures */
+.ea-toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #9b1a0a;
+    color: #fff9ef;
+    font-family: var(--font-body);
+    font-size: 0.55rem;
+    letter-spacing: 1px;
+    padding: 0.6rem 1.2rem;
+    border: 2px solid var(--ink);
+    box-shadow: 4px 4px 0 var(--ink);
+    z-index: 2000;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.4s ease;
+}
+.ea-toast.ea-toast-fade {
+    opacity: 0;
+}
+
+.gallery-action-danger {
+    background: #9b1a0a;
+    color: #fff9ef;
+    box-shadow: none;
+}
+.gallery-action-danger:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Clear Gallery confirmation modal */
+.modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal-backdrop.is-open {
+    display: flex;
+}
+.modal-box {
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    box-shadow: 6px 6px 0 var(--ink);
+    padding: 2rem;
+    max-width: 420px;
+    width: 90%;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.modal-title {
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #9b1a0a;
+    margin: 0;
+}
+.modal-body {
+    font-family: var(--font-body);
+    font-size: 0.6rem;
+    line-height: 1.8;
+    color: var(--ink);
+    margin: 0;
+}
+.modal-input {
+    font-family: var(--font-body);
+    font-size: 0.65rem;
+    border: 2px solid var(--ink);
+    background: var(--bone);
+    color: var(--ink);
+    padding: 0.5rem 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+.modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
 .gallery-delete {
     position: absolute;
     top: 12px;

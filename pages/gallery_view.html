@@ -60,7 +60,7 @@
                         window.location.href = '/gallery';
                         return;
                     }
-                    window.alert(payload.error || 'Delete failed.');
+                    showToast(payload.error || 'Delete failed.');
                     return;
                 }
 
@@ -82,7 +82,7 @@
 
                 const payload = await response.json();
                 if (!response.ok) {
-                    window.alert(payload.error || 'Favorite update failed.');
+                    showToast(payload.error || 'Favorite update failed.');
                     return;
                 }
 

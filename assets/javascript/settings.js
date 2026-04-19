@@ -282,7 +282,7 @@
             // When the user switches to the large model, trigger the download.
             modelSelector.addEventListener('change', async () => {
                 if (modelSelector.value === 'large') {
-                    window.alert('Large Model may take a while to download and prepare the first time you select it.');
+                    syncStatus('Large Model may take a while to download and prepare the first time you select it.', 'neutral');
                     syncModelStatus({ state: 'loading' });
                     try {
                         await startLargeModelPreload();
@@ -345,13 +345,66 @@
         });
 
         // Clear gallery — delete everything (images + metadata).
-        clearGalleryButton?.addEventListener('click', async event => {
+        // Requires the user to type "DELETE" in a confirmation modal before proceeding.
+        const modal       = document.getElementById('clear-gallery-modal');
+        const modalInput  = document.getElementById('modal-confirm-input');
+        const modalOk     = document.getElementById('modal-confirm');
+        const modalCancel = document.getElementById('modal-cancel');
+
+        function openModal() {
+            modalInput.value = '';
+            modalOk.disabled = true;
+            modal.classList.add('is-open');
+            modalInput.focus();
+        }
+        function closeModal() {
+            modal.classList.remove('is-open');
+            modalInput.value = '';
+            modalOk.disabled = true;
+        }
+
+        clearGalleryButton?.addEventListener('click', event => {
             event.preventDefault();
-            if (!window.confirm('Delete every saved gallery image and metadata file?')) return;
+            openModal();
+        });
+
+        modalInput?.addEventListener('input', () => {
+            modalOk.disabled = modalInput.value.trim() !== 'DELETE';
+        });
+
+        modalCancel?.addEventListener('click', closeModal);
+
+        // Close on backdrop click
+        modal?.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+        // Close on Escape
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+
+        modalOk?.addEventListener('click', async () => {
+            closeModal();
             const response = await fetch('/api/settings/clear-gallery', { method: 'POST' });
             const payload = await response.json();
             syncStatus(response.ok ? 'Gallery cleared' : (payload.error || 'Unable to clear gallery'), response.ok ? 'success' : 'error');
         });
+
+        // H5-03: Filename pattern real-time validation — flag characters that are
+        // illegal in Windows and Linux filenames before the user tries to save.
+        const filenamePatternInput = form.elements.namedItem('saving_filename_pattern');
+        const filenamePatternError = document.getElementById('filename-pattern-error');
+        const ILLEGAL_FILENAME_CHARS = /[/\\:*?"<>|]/;
+
+        if (filenamePatternInput && filenamePatternError) {
+            filenamePatternInput.addEventListener('input', () => {
+                const val = filenamePatternInput.value;
+                if (ILLEGAL_FILENAME_CHARS.test(val)) {
+                    filenamePatternError.textContent = 'Cannot contain: / \\ : * ? " < > |';
+                    filenamePatternInput.setAttribute('aria-invalid', 'true');
+                } else {
+                    filenamePatternError.textContent = '';
+                    filenamePatternInput.removeAttribute('aria-invalid');
+                }
+            });
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -370,5 +423,18 @@
     // can read the current settings without touching localStorage directly.
     window.getEmotionArtSettings = function () {
         return readStoredSettings();
+    };
+
+    // Expose a toast notification helper used by gallery pages and gallery-save.js
+    // instead of window.alert(). Creates a dismissing banner at the bottom of the page.
+    window.showToast = function showToast(message) {
+        const el = document.createElement('div');
+        el.className = 'ea-toast';
+        el.textContent = message;
+        document.body.appendChild(el);
+        window.setTimeout(() => {
+            el.classList.add('ea-toast-fade');
+            el.addEventListener('transitionend', () => el.remove(), { once: true });
+        }, 2500);
     };
 })();

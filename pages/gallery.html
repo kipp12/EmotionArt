@@ -92,7 +92,7 @@
 
                 const payload = await response.json();
                 if (!response.ok) {
-                    window.alert(payload.error || 'Favourite update failed.');
+                    showToast(payload.error || 'Favourite update failed.');
                     return;
                 }
 
@@ -121,7 +121,7 @@
 
                 const payload = await response.json();
                 if (!response.ok) {
-                    window.alert(payload.error || 'Rename failed.');
+                    showToast(payload.error || 'Rename failed.');
                     return;
                 }
 
@@ -151,7 +151,7 @@
                         broadcastGalleryChange('delete', filename);
                         return;
                     }
-                    window.alert(payload.error || 'Delete failed.');
+                    showToast(payload.error || 'Delete failed.');
                     return;
                 }
 

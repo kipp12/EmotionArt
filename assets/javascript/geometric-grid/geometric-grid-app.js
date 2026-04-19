@@ -116,7 +116,8 @@ async function analyseText(text) {
         }
     } catch (error) {
         console.error(error);
-        document.getElementById('output').textContent = error.message || 'Analysis failed.';
+        document.getElementById('output').textContent =
+            'The emotion model isn\u2019t ready. Please try again, or switch to the Fast Model in Settings.';
         status.textContent = 'MODEL ERROR';
     }
 }
@@ -197,7 +198,12 @@ if (SpeechRecognition) {
             isListening = false;
             button.textContent = 'START LISTENING';
             button.classList.remove('active');
-            document.getElementById('status').textContent = 'MIC ERROR';
+            document.getElementById('status').textContent =
+                event.error === 'not-allowed' ? 'MIC BLOCKED' : 'MIC ERROR';
+            if (event.error === 'not-allowed') {
+                document.getElementById('output').textContent =
+                    'Microphone access was denied. Click the lock icon in your browser\u2019s address bar and allow microphone access, then try again.';
+            }
         }
     });
 

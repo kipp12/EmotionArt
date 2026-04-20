@@ -70,3 +70,39 @@ The settings page provides a range of options, allowing you to configure:
 - The privacy options.
 
 To save any changes you make, you must scroll to the bottom of the page and select ```SAVE CHANGES```. 
+
+
+# EmotionArt Developer Guide
+
+## Tech Stack
+The important technologies used are:
+- Python 3.12
+- Flask
+- FlaskCORS
+- p5.js
+- Jinja2
+- Hugging Face Transformers (NLP)
+- PyTorch (NLP)
+- J-Hartmann's Distilroberta-base (Emotion Classification)
+- J-Hartmann's Distilroberta-large (Emotion Classification)
+
+## How To Add A New Theme Page
+Step 1: Create a route in ```app.py```. You can copy an existing route and change the route names.
+
+Step 2: Create the HTML page in ```pages/```. It's best to copy an existing theme and modify it. Some good examples to copy are ```spirals.html``` or ```flow_field```.
+
+Step 3: Create a JavaScript controller in ```assets/javascript/```. You should:
+- Define how the artwork is rendered
+- Implement ```applyEmotions()```, ```getAppSettings()```, ```saveArtwork()```, ```captureImage()```.
+- Add a call to ```POST /analyse``` to retrieve the emotion scores.
+- Ensure the file matches the HTML IDs used by the page, especially ```mic-toggle```, ```text-input```, ```text-submit```, ```status```, ```output```, ```transcript```, ```save output```.
+Once again, it's a good idea to copy an existing theme's logic and modify it. A good example to copy would be: ```assets/javascript/anamorphic-resonance/anamorphic-resonance-app.js```.
+
+Step 4: Return to your HTML page in```pages/``` and add add your script(s) with ```<script src=""></script>```. If you copied and modified a HTML page then remove the existing scripts.
+
+Step 5: Add the theme to the main themes page. Do this by updating ```pages/index.html``` with:
+- A theme tile link.
+- A preview image.
+- A theme name.
+- A credit label.
+- A short description of your theme.

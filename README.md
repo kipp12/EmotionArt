@@ -1,4 +1,4 @@
-```TO DEVELOPERS: There is a developer guide after the user guide! (not added yet)```
+```TO DEVELOPERS: There is a developer guide after the user guide!```
 
 # EmotionArt User Guide
 EmotionArt is an interactive procedural art generator that extracts emotion from typed or spoken transcripts to creates unique and fun artifacts. Users can choose from multiple visual themes and save/favourite their generated artwork. 

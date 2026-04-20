@@ -96,6 +96,7 @@ Step 3: Create a JavaScript controller in ```assets/javascript/```. You should:
 - Implement ```applyEmotions()```, ```getEmotionArtSettings()```, ```saveArtwork()```, ```captureImage()```.
 - Add a call to ```POST /analyse``` to retrieve the emotion scores.
 - Ensure the file matches the HTML IDs used by the page, especially ```mic-toggle```, ```text-input```, ```text-submit```, ```status```, ```output```, ```transcript```, ```save output```.
+
 Once again, it's a good idea to copy an existing theme's logic and modify it. A good example to copy would be: ```assets/javascript/anamorphic-resonance/anamorphic-resonance-app.js```. 
 
 Step 4: Return to your HTML page in```pages/``` and add add your script(s) with ```<script src=""></script>```. If you copied and modified a HTML page then remove the existing scripts.
@@ -145,7 +146,7 @@ The UI is built around:
 - .overlay-panel
 - .control-dock
 
-Please reuse existing classes. The app already supports:
+Please reuse existing classes before creating new layouts. The app already supports:
 - dark mode
 - high contrast
 - reduced motion

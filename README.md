@@ -110,7 +110,7 @@ Step 5: Add the theme to the main themes page. Do this by updating ```pages/inde
 
 ## Settings 
 - The settings are stored in ```emotionart-settings```. The logic lives in ```assets/javascript/settings.js```.
-- Settings are applied by writing ```data-*``` attributes onto <html>, ```base.css``` reacts to those attributes. Non-visual settings are still stored in the same settings object, but are handled in ```settings.js```.
+- Settings are applied by writing ```data-*``` attributes onto ```<html>```, ```base.css``` reacts to those attributes. Non-visual settings are still stored in the same settings object, but are handled in ```settings.js```.
 - Themes can read current settings with ```getEmotionArtSettings()```.
 
 ## Gallery & Favourites

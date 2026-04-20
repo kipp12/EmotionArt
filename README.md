@@ -152,4 +152,5 @@ Please reuse existing classes. The app already supports:
 - reduced retro styling
 - larger text
 - compact density
+
 So please do not hardcode any styling as it will not update correctly with the app.

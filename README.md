@@ -89,14 +89,14 @@ The important technologies used are:
 ## How To Add A New Theme Page
 Step 1: Create a route in ```app.py```. You can copy an existing route and change the route names.
 
-Step 2: Create the HTML page in ```pages/```. It's best to copy an existing theme and modify it. Some good examples to copy are ```spirals.html``` or ```flow_field```.
+Step 2: Create the HTML page in ```pages/```. It's best to copy an existing theme and modify it. Some good examples to copy are ```spirals.html``` or ```flow_field.html```.
 
 Step 3: Create a JavaScript controller in ```assets/javascript/```. You should:
-- Define how the artwork is rendered
-- Implement ```applyEmotions()```, ```getAppSettings()```, ```saveArtwork()```, ```captureImage()```.
+- Define how the artwork is rendered.
+- Implement ```applyEmotions()```, ```getEmotionArtSettings()```, ```saveArtwork()```, ```captureImage()```.
 - Add a call to ```POST /analyse``` to retrieve the emotion scores.
 - Ensure the file matches the HTML IDs used by the page, especially ```mic-toggle```, ```text-input```, ```text-submit```, ```status```, ```output```, ```transcript```, ```save output```.
-Once again, it's a good idea to copy an existing theme's logic and modify it. A good example to copy would be: ```assets/javascript/anamorphic-resonance/anamorphic-resonance-app.js```.
+Once again, it's a good idea to copy an existing theme's logic and modify it. A good example to copy would be: ```assets/javascript/anamorphic-resonance/anamorphic-resonance-app.js```. 
 
 Step 4: Return to your HTML page in```pages/``` and add add your script(s) with ```<script src=""></script>```. If you copied and modified a HTML page then remove the existing scripts.
 
@@ -106,3 +106,50 @@ Step 5: Add the theme to the main themes page. Do this by updating ```pages/inde
 - A theme name.
 - A credit label.
 - A short description of your theme.
+
+## Settings 
+- The settings are stored in ```emotionart-settings```. The logic lives in ```assets/javascript/settings.js```.
+- Settings are applied by writing ```data-*``` attributes onto <html>, ```base.css``` reacts to those attributes. Non-visual settings are still stored in the same settings object, but are handled in ```settings.js```.
+- Themes can read current settings with ```getEmotionArtSettings()```.
+
+## Gallery & Favourites
+Gallery saving and favouriting is local.
+
+The frontend sends:
+- page_name
+- image_data as PNG
+- transcript
+- emotions
+- filename_pattern
+
+The backend writes:
+- Image file in ```gallery/```.
+- Metadata JSON in ```gallery/```.
+
+Related endpoints:
+- ```POST /api/gallery/save```
+- ```POST /api/gallery/rename```
+- ```POST /api/gallery/favourite```
+- ```POST /api/gallery/delete```
+
+## Style Convention
+All main styling is found in ```assets/stlyes/base.css```.
+
+The UI is built around:
+- .app-shell
+- .app-sidebar
+- .app-main
+- .page-header
+- .page-content
+- .visual-stage
+- .overlay-panel
+- .control-dock
+
+Please reuse existing classes. The app already supports:
+- dark mode
+- high contrast
+- reduced motion
+- reduced retro styling
+- larger text
+- compact density
+So please do not hardcode any styling as it will not update correctly with the app.
